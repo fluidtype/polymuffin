@@ -1,6 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import ShaderBg from '@/components/ShaderBg';
+import ShaderBg from '@/components/ShaderBgClient';
 
 export const metadata: Metadata = {
   title: 'Polymuffin',
@@ -27,4 +27,3 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
-
