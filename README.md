@@ -29,6 +29,7 @@ The development server runs on [http://localhost:3000](http://localhost:3000). T
 | `npm run start` | Run the production server. |
 | `npm run lint` | Lint the project with the repo ESLint config. |
 | `npm run check:lockfiles` | Detect `package-lock.json` files outside the project root that can cause Next.js workspace warnings. |
+| `npm run clean:lockfiles` | Detect **and delete** `package-lock.json` files outside the project root. |
 
 ## Lockfile hygiene
 
@@ -42,6 +43,12 @@ npm run check:lockfiles
 
 - **Windows**: `del <path-to-lockfile>`
 - **macOS/Linux**: `rm <path-to-lockfile>`
+
+If you would like the repository to delete the extra lockfiles for you, run:
+
+```bash
+npm run clean:lockfiles
+```
 
 Keeping only the `package-lock.json` that lives in the project root prevents the workspace warning
 and ensures dependency installs remain deterministic.
