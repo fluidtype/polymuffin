@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:lockfiles": "node scripts/check-lockfiles.mjs"
   },
   "dependencies": {
     "@react-spring/three": "^10.0.3",

@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Polymuffin
 
-## Getting Started
+Polymuffin is an experimental market-prediction dashboard scaffolded with Next.js 15 (App Router),
+TypeScript, Tailwind CSS 4, and the ShaderGradient background stack. The repository currently ships
+placeholder pages, API routes, and UI components so that future feature blocks can focus purely on
+product logic.
 
-First, run the development server:
+## Requirements
+
+- Node.js 20+
+- npm 10+
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The development server runs on [http://localhost:3000](http://localhost:3000). The home page and the
+`/search` route both display placeholder copy to confirm routing works before wiring real data.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Available scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Script | Description |
+| --- | --- |
+| `npm run dev` | Start the development server with Turbopack. |
+| `npm run build` | Create a production build. |
+| `npm run start` | Run the production server. |
+| `npm run lint` | Lint the project with the repo ESLint config. |
+| `npm run check:lockfiles` | Detect `package-lock.json` files outside the project root that can cause Next.js workspace warnings. |
 
-## Learn More
+## Lockfile hygiene
 
-To learn more about Next.js, take a look at the following resources:
+Next.js issues the warning `Next.js inferred your workspace root` when it finds a `package-lock.json`
+in a parent directory (for example `C:\Users\User\package-lock.json`). Run the helper script and
+remove any paths it reports:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run check:lockfiles
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Windows**: `del <path-to-lockfile>`
+- **macOS/Linux**: `rm <path-to-lockfile>`
 
-## Deploy on Vercel
+Keeping only the `package-lock.json` that lives in the project root prevents the workspace warning
+and ensures dependency installs remain deterministic.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Environment variables
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Create a `.env.local` file (ignored by git) with the values below to prepare for upcoming API
+integrations:
+
+```
+NEXT_PUBLIC_SITE_NAME=Polymuffin
+X_BEARER_TOKEN=
+POLYMARKET_GAMMA=https://gamma-api.polymarket.com
+```
+
+## Project structure
+
+```
+src/
+  app/
+    api/        # Placeholder API routes returning 501
+    search/     # Search route placeholder
+    layout.tsx  # Global layout with dark theme defaults
+    page.tsx    # Home dashboard placeholder
+  components/  # UI stubs (SearchBar, MarketCard, TweetCard, Section, ShaderBg)
+  lib/         # Data model and HTTP stubs for future integrations
+public/
+  README.md    # Reserved for future static asset documentation
+```
+
+The scaffolding compiles cleanly so subsequent feature blocks can iterate without bootstrapping
+friction.
