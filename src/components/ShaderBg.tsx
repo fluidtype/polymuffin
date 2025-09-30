@@ -1,24 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { ShaderGradientCanvas, ShaderGradient } from '@shadergradient/react';
 
 /**
- * Full-page animated background (updated preset).
+ * Full-page animated background using the updated preset.
  * - pointer-events: none to keep UI clickable
  * - zIndex: -1 to stay behind content
  */
 export default function ShaderBg() {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return null;
-  }
-
   return (
     <div
       aria-hidden
@@ -38,4 +27,3 @@ export default function ShaderBg() {
     </div>
   );
 }
-
