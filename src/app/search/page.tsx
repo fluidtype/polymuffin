@@ -1,7 +1,7 @@
+import dynamic from 'next/dynamic';
 import SearchBar from '@/components/SearchBar';
 import ChartCard from '@/components/ChartCard';
 import KpiCard from '@/components/KpiCard';
-import TimeSeriesVisx from '@/components/charts/TimeSeriesVisx';
 import EventsList from '@/components/EventsList';
 import { RightColumn } from '@/components/RightColumn';
 import FadeIn from '@/components/motion/FadeIn';
@@ -11,6 +11,11 @@ import { parseQuery } from '@/lib/queryParser';
 import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev, toSeries, seriesCoverage } from '@/lib/stats';
 import { getBaseUrl } from '@/lib/urls';
 import type { GdeltResp, Market, Tweet } from '@/lib/types';
+
+const TimeSeriesVisx = dynamic(() => import('@/components/charts/TimeSeriesVisx'), {
+  ssr: false,
+  loading: () => <div className="h-64 bg-white/5 rounded-2xl animate-pulse" />,
+});
 
 type TwitterResp = { data?: Tweet[] };
 type PolymarketOutcome = { price?: number };

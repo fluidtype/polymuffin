@@ -1,15 +1,28 @@
+import type { ReactNode } from 'react';
 import Card from './ui/Card';
 import Badge from './ui/Badge';
 
 export function RightColumn({
   tweets,
   markets,
+  LiveChart,
 }: {
   tweets: { id: string; text: string; author?: string; likes?: number }[];
   markets: { id: string; question: string; price?: number; volume?: number }[];
+  LiveChart?: ReactNode;
 }) {
   return (
     <aside className="space-y-4">
+      {LiveChart && (
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium text-white">Live signal</h3>
+            <Badge>Streaming</Badge>
+          </div>
+          {LiveChart}
+        </Card>
+      )}
+
       <Card className="p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-medium text-white">Top Tweet</h3>

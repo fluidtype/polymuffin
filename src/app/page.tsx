@@ -1,7 +1,7 @@
+import dynamic from 'next/dynamic';
 import SearchBar from '@/components/SearchBar';
 import ChartCard from '@/components/ChartCard';
 import KpiCard from '@/components/KpiCard';
-import TimeSeriesVisx from '@/components/charts/TimeSeriesVisx';
 import EventsList from '@/components/EventsList';
 import { RightColumn } from '@/components/RightColumn';
 import FadeIn from '@/components/motion/FadeIn';
@@ -11,6 +11,16 @@ import { lastNDaysISO } from '@/lib/dates';
 import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev, movingAverage, toSeries } from '@/lib/stats';
 import { getBaseUrl } from '@/lib/urls';
 import type { GdeltResp, Market, Tweet } from '@/lib/types';
+
+const TimeSeriesVisx = dynamic(() => import('@/components/charts/TimeSeriesVisx'), {
+  ssr: false,
+  loading: () => <div className="h-64 bg-white/5 rounded-2xl animate-pulse" />,
+});
+
+const LiveMiniChart = dynamic(() => import('@/components/charts/LiveMiniChart'), {
+  ssr: false,
+  loading: () => <div className="h-44 bg-white/5 rounded-2xl animate-pulse" />,
+});
 
 type TwitterResp = { data?: Tweet[] };
 type PolymarketOutcome = { price?: number };
@@ -120,7 +130,7 @@ export default async function Home() {
         </div>
 
         <FadeIn delay={0.15}>
-          <RightColumn tweets={tweets} markets={markets} />
+          <RightColumn tweets={tweets} markets={markets} LiveChart={<LiveMiniChart />} />
         </FadeIn>
       </div>
     </div>
