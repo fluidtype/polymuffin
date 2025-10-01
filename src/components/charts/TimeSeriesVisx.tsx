@@ -57,6 +57,10 @@ const toRgba = (hex: string, alpha: number) => {
 const getX = (d: D) => d.date;
 const getY = (d: D) => d.value;
 
+const isAreaCurve = (
+  curve: CurveFactory | CurveFactoryLineOnly,
+): curve is CurveFactory => 'areaStart' in curve && 'areaEnd' in curve;
+
 export default function TimeSeriesVisx({
   series,
   height = 260,
@@ -83,7 +87,7 @@ export default function TimeSeriesVisx({
             dy: 8,
             textAnchor: 'middle',
           })}
-          axisLineProps={{ stroke: 'rgba(255,255,255,0.1)' }}
+          stroke="rgba(255,255,255,0.1)"
         />
         <AnimatedAxis
           orientation="left"
@@ -94,8 +98,8 @@ export default function TimeSeriesVisx({
             dx: -4,
             textAnchor: 'end',
           })}
-          axisLineProps={{ stroke: 'rgba(255,255,255,0.1)' }}
           tickLineProps={{ stroke: 'rgba(255,255,255,0.08)' }}
+          stroke="rgba(255,255,255,0.1)"
         />
         {showGrid && <AnimatedGrid columns={false} numTicks={5} />}
         {series.map((s, index) => {
@@ -113,7 +117,7 @@ export default function TimeSeriesVisx({
                 data={s.data}
                 xAccessor={getX}
                 yAccessor={getY}
-                curve={curve}
+                curve={curve && isAreaCurve(curve) ? curve : undefined}
                 fill={`url(#gradient-${s.id})`}
                 stroke="transparent"
               />
@@ -132,7 +136,7 @@ export default function TimeSeriesVisx({
           showVerticalCrosshair
           snapTooltipToDatumX
           snapTooltipToDatumY
-          renderTooltip={({ tooltipData }) => {
+          renderTooltip={({ tooltipData, colorScale }) => {
             if (!tooltipData?.nearestDatum) return null;
             const nearestKeyRaw = tooltipData.nearestDatum.key as string;
             const normalizedNearestKey = nearestKeyRaw?.endsWith('-area')
@@ -142,7 +146,6 @@ export default function TimeSeriesVisx({
             const nearestDatum =
               (tooltipData.datumByKey?.[fallbackKey]?.datum as D) ??
               (tooltipData.nearestDatum.datum as D);
-            const colorScale = tooltipData.colorScale;
             const fallbackLabel = series.find((s) => s.id === fallbackKey)?.label ?? fallbackKey;
             const fallbackColor = colorScale?.(fallbackKey) ?? theme.colors[0];
             const fallbackEntry = {

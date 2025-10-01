@@ -1,11 +1,9 @@
 import './globals.css';
 import { isValidElement } from 'react';
 import type { Metadata } from 'next';
-import dynamic from 'next/dynamic';
 import DashboardShell, { type DashboardHeader } from '@/components/DashboardShell';
 import ShaderBg from '@/components/ShaderBgClient';
-
-const CommandPalette = dynamic(() => import('@/components/CommandPalette'), { ssr: false });
+import CommandPalette from '@/components/CommandPaletteProvider';
 
 export const metadata: Metadata = {
   title: 'Polymuffin',

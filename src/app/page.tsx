@@ -1,5 +1,5 @@
+import { Suspense } from 'react';
 import clsx from 'clsx';
-import dynamic from 'next/dynamic';
 import FadeIn from '@/components/motion/FadeIn';
 import ChartCard from '@/components/ChartCard';
 import EventsList from '@/components/EventsList';
@@ -8,21 +8,13 @@ import { RightColumn } from '@/components/RightColumn';
 import SectionTitle from '@/components/SectionTitle';
 import Button from '@/components/ui/Button';
 import { withDashboardHeader, type DashboardHeader } from '@/components/DashboardShell';
+import TimeSeriesVisx from '@/components/charts/TimeSeriesVisx';
+import LiveMiniChart from '@/components/charts/LiveMiniChart';
 
 import { lastNDaysISO } from '@/lib/dates';
 import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev, movingAverage, toSeries } from '@/lib/stats';
 import { getBaseUrl } from '@/lib/urls';
 import type { GdeltResp, Market, Tweet } from '@/lib/types';
-
-const TimeSeriesVisx = dynamic(() => import('@/components/charts/TimeSeriesVisx'), {
-  ssr: false,
-  loading: () => <div className="h-64 rounded-2xl bg-white/5 animate-pulse" />,
-});
-
-const LiveMiniChart = dynamic(() => import('@/components/charts/LiveMiniChart'), {
-  ssr: false,
-  loading: () => <div className="h-44 rounded-2xl bg-white/5 animate-pulse" />,
-});
 
 export const header: DashboardHeader = {
   title: 'Market pulse',
@@ -141,7 +133,9 @@ export default async function Home() {
               isEmpty={!hasVolumeSeries}
               emptyHint="We’ll chart volume once GDELT returns activity for this range."
             >
-              <TimeSeriesVisx series={[{ id: 'volume', data: volSeries }]} />
+              <Suspense fallback={<div className="h-64 rounded-2xl bg-white/5 animate-pulse" />}>
+                <TimeSeriesVisx series={[{ id: 'volume', data: volSeries }]} />
+              </Suspense>
             </ChartCard>
           </FadeIn>
           <FadeIn delay={0.05}>
@@ -150,7 +144,9 @@ export default async function Home() {
               isEmpty={!hasSentSeries}
               emptyHint="Sentiment data will appear as soon as we ingest events."
             >
-              <TimeSeriesVisx series={[{ id: 'sentiment', data: sentSeries }]} />
+              <Suspense fallback={<div className="h-64 rounded-2xl bg-white/5 animate-pulse" />}>
+                <TimeSeriesVisx series={[{ id: 'sentiment', data: sentSeries }]} />
+              </Suspense>
             </ChartCard>
           </FadeIn>
           <FadeIn delay={0.1}>
@@ -159,7 +155,15 @@ export default async function Home() {
         </div>
 
         <FadeIn delay={0.15}>
-          <RightColumn tweets={tweets} markets={markets} LiveChart={<LiveMiniChart />} />
+          <RightColumn
+            tweets={tweets}
+            markets={markets}
+            LiveChart={(
+              <Suspense fallback={<div className="h-44 rounded-2xl bg-white/5 animate-pulse" />}>
+                <LiveMiniChart />
+              </Suspense>
+            )}
+          />
         </FadeIn>
       </div>
     </div>

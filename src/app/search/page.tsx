@@ -1,4 +1,4 @@
-import dynamic from 'next/dynamic';
+import { Suspense } from 'react';
 import FadeIn from '@/components/motion/FadeIn';
 import ChartCard from '@/components/ChartCard';
 import EventsList from '@/components/EventsList';
@@ -7,16 +7,12 @@ import SearchBar from '@/components/SearchBar';
 import { RightColumn } from '@/components/RightColumn';
 import SectionTitle from '@/components/SectionTitle';
 import { withDashboardHeader, type DashboardHeader } from '@/components/DashboardShell';
+import TimeSeriesVisx from '@/components/charts/TimeSeriesVisx';
 
 import { parseQuery } from '@/lib/queryParser';
 import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev, toSeries, seriesCoverage } from '@/lib/stats';
 import { getBaseUrl } from '@/lib/urls';
 import type { GdeltResp, Market, Tweet } from '@/lib/types';
-
-const TimeSeriesVisx = dynamic(() => import('@/components/charts/TimeSeriesVisx'), {
-  ssr: false,
-  loading: () => <div className="h-64 rounded-2xl bg-white/5 animate-pulse" />,
-});
 
 export const header: DashboardHeader = {
   title: 'Search',
@@ -140,7 +136,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
               isEmpty={!hasMainSeries}
               emptyHint="We couldn’t load enough data for this chart. Try expanding the date range."
             >
-              <TimeSeriesVisx series={[{ id: mainSeriesId, data: mainSeries }]} />
+              <Suspense fallback={<div className="h-64 rounded-2xl bg-white/5 animate-pulse" />}>
+                <TimeSeriesVisx series={[{ id: mainSeriesId, data: mainSeries }]} />
+              </Suspense>
             </ChartCard>
           </FadeIn>
           <FadeIn delay={0.05}>
@@ -149,7 +147,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
               isEmpty={!hasSentSeries}
               emptyHint="Sentiment will appear once we have GDELT events for this search."
             >
-              <TimeSeriesVisx series={[{ id: 'sentiment', data: sentSeries }]} />
+              <Suspense fallback={<div className="h-64 rounded-2xl bg-white/5 animate-pulse" />}>
+                <TimeSeriesVisx series={[{ id: 'sentiment', data: sentSeries }]} />
+              </Suspense>
             </ChartCard>
           </FadeIn>
           <FadeIn delay={0.1}>
