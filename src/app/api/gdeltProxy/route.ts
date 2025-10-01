@@ -16,9 +16,32 @@ export async function GET(req: NextRequest) {
 
   try {
     const data = await fetchGdelt({ q, from, to, gran, mode });
+    if (data.status === 'error') {
+      const message = data.error ?? 'Unknown error';
+      const statusCode = classifyError(message);
+      return NextResponse.json(
+        { status: 'error', error: message },
+        { status: statusCode, headers: { 'cache-control': 'no-store' } },
+      );
+    }
     return NextResponse.json(data, { headers: { 'cache-control': 'no-store' } });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ status: 'error', error: message }, { status: 500 });
+    const statusCode = classifyError(message);
+    return NextResponse.json(
+      { status: 'error', error: message },
+      { status: statusCode, headers: { 'cache-control': 'no-store' } },
+    );
   }
+}
+
+function classifyError(message: string): number {
+  const normalized = message.toLowerCase();
+  if (normalized.includes('invalid') || normalized.includes('missing') || normalized.includes('parameter')) {
+    return 400;
+  }
+  if (normalized.includes('rate limit') || normalized.includes('too many')) {
+    return 429;
+  }
+  return 502;
 }

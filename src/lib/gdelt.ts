@@ -67,6 +67,17 @@ export function buildGdeltUrl({ q, from, to, gran, mode }: BuildOpts) {
 export async function fetchGdelt(opts: BuildOpts): Promise<GdeltResp> {
   const url = buildGdeltUrl(opts);
   const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) return { status: 'error', error: `GDELT ${res.status}` };
+  if (!res.ok) {
+    let detail: string | null = null;
+    try {
+      detail = await res.text();
+    } catch {
+      detail = null;
+    }
+    const message = detail?.trim()?.length
+      ? detail.trim()
+      : res.statusText || 'Unknown response';
+    throw new Error(`GDELT request failed (${res.status}): ${message}`);
+  }
   return res.json();
 }
