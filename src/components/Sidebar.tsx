@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import { LayoutDashboard, LineChart, Search } from 'lucide-react';
@@ -18,7 +19,13 @@ export default function Sidebar() {
     <aside className="hidden md:flex md:flex-col w-64 gap-4">
       <Card className="p-4">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-xl" style={{ background: 'radial-gradient(circle,#ff2d2d,#8b0000)' }} />
+          <Image
+            src="/muffin.png"
+            alt="Polymuffin logo"
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded-xl object-cover"
+          />
           <div className="font-semibold">Polymuffin</div>
         </div>
       </Card>
