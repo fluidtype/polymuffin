@@ -1,7 +1,7 @@
 import SearchBar from '@/components/SearchBar';
 import ChartCard from '@/components/ChartCard';
 import KpiCard from '@/components/KpiCard';
-import LineBasic from '@/components/charts/Line';
+import TimeSeriesVisx from '@/components/charts/TimeSeriesVisx';
 import EventsList from '@/components/EventsList';
 import { RightColumn } from '@/components/RightColumn';
 import FadeIn from '@/components/motion/FadeIn';
@@ -102,7 +102,7 @@ export default async function Home() {
               isEmpty={!hasVolumeSeries}
               emptyHint="We’ll chart volume once GDELT returns activity for this range."
             >
-              <LineBasic data={volSeries} />
+              <TimeSeriesVisx series={[{ id: 'volume', data: volSeries }]} />
             </ChartCard>
           </FadeIn>
           <FadeIn delay={0.05}>
@@ -111,7 +111,7 @@ export default async function Home() {
               isEmpty={!hasSentSeries}
               emptyHint="Sentiment data will appear as soon as we ingest events."
             >
-              <LineBasic data={sentSeries} color="#ff5a5a" />
+              <TimeSeriesVisx series={[{ id: 'sentiment', data: sentSeries }]} />
             </ChartCard>
           </FadeIn>
           <FadeIn delay={0.1}>

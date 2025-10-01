@@ -1,7 +1,7 @@
 import SearchBar from '@/components/SearchBar';
 import ChartCard from '@/components/ChartCard';
 import KpiCard from '@/components/KpiCard';
-import LineBasic from '@/components/charts/Line';
+import TimeSeriesVisx from '@/components/charts/TimeSeriesVisx';
 import EventsList from '@/components/EventsList';
 import { RightColumn } from '@/components/RightColumn';
 import FadeIn from '@/components/motion/FadeIn';
@@ -75,6 +75,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
   const mainSeries = mode === 'bbva'
     ? seriesCoverage(rows)
     : toSeries(rows, 'interaction_count');
+  const mainSeriesId = mode === 'bbva' ? 'coverage' : 'volume';
 
   const sentSeries = toSeries(rows, 'avg_sentiment');
   const hasMainSeries = mainSeries.length > 0;
@@ -132,7 +133,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
               isEmpty={!hasMainSeries}
               emptyHint="We couldn’t load enough data for this chart. Try expanding the date range."
             >
-              <LineBasic data={mainSeries} />
+              <TimeSeriesVisx series={[{ id: mainSeriesId, data: mainSeries }]} />
             </ChartCard>
           </FadeIn>
           <FadeIn delay={0.05}>
@@ -141,7 +142,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
               isEmpty={!hasSentSeries}
               emptyHint="Sentiment will appear once we have GDELT events for this search."
             >
-              <LineBasic data={sentSeries} color="#ff5a5a" />
+              <TimeSeriesVisx series={[{ id: 'sentiment', data: sentSeries }]} />
             </ChartCard>
           </FadeIn>
           <FadeIn delay={0.1}>
