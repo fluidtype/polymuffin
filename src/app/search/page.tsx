@@ -9,9 +9,10 @@ import SectionTitle from '@/components/SectionTitle';
 import { withDashboardHeader, type DashboardHeader } from '@/components/DashboardShell';
 
 import { parseQuery } from '@/lib/queryParser';
-import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev, toSeries, seriesCoverage } from '@/lib/stats';
+import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev } from '@/lib/stats';
 import { getBaseUrl } from '@/lib/urls';
 import type { GdeltResp, Market, Tweet } from '@/lib/types';
+import { buildMainSeries, buildSentimentSeries, extractEvents, type EventRow } from '@/lib/gdeltTransforms';
 
 async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
   const res = await fetch(input, init);
@@ -54,18 +55,19 @@ type PolymarketOutcome = { price?: number };
 type PolymarketMarket = Market & { outcomes?: PolymarketOutcome[] };
 type PolymarketResp = { items?: PolymarketMarket[] };
 
-type EventRow = { date: string; title: string; tone?: number; impact?: number; source?: string };
-
 type SearchParams = Record<string, string | string[]>;
+type SearchPageProps = { searchParams: SearchParams | Promise<SearchParams> };
 
-export default async function SearchPage({ searchParams }: { searchParams: SearchParams }) {
-  const q = (typeof searchParams.q === 'string' ? searchParams.q : searchParams.q?.[0]) ?? '';
-  const from = (typeof searchParams.from === 'string' ? searchParams.from : searchParams.from?.[0])
+export default async function SearchPage({ searchParams }: SearchPageProps) {
+  const params = await Promise.resolve(searchParams);
+
+  const q = (typeof params.q === 'string' ? params.q : params.q?.[0]) ?? '';
+  const from = (typeof params.from === 'string' ? params.from : params.from?.[0])
     ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  const to = (typeof searchParams.to === 'string' ? searchParams.to : searchParams.to?.[0])
+  const to = (typeof params.to === 'string' ? params.to : params.to?.[0])
     ?? new Date().toISOString().slice(0, 10);
-  const gran = ((typeof searchParams.gran === 'string' ? searchParams.gran : searchParams.gran?.[0]) ?? 'auto') as 'auto' | 'daily' | 'monthly';
-  const srcParam = (typeof searchParams.src === 'string' ? searchParams.src : searchParams.src?.[0]) ?? 'gdelt,twitter,polymarket';
+  const gran = ((typeof params.gran === 'string' ? params.gran : params.gran?.[0]) ?? 'auto') as 'auto' | 'daily' | 'monthly';
+  const srcParam = (typeof params.src === 'string' ? params.src : params.src?.[0]) ?? 'gdelt,twitter,polymarket';
   const want = new Set(srcParam.split(',').filter(Boolean));
   const baseUrl = await getBaseUrl();
 
@@ -147,14 +149,12 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
     : null;
 
   const mainSeries = shouldComputeKpis
-    ? mode === 'bbva'
-      ? seriesCoverage(rows)
-      : toSeries(rows, 'interaction_count')
+    ? buildMainSeries(rows, gdRes?.action ?? mode, gdRes?.insights)
     : [];
 
-  const sentSeries = shouldComputeKpis ? toSeries(rows, 'avg_sentiment') : [];
+  const sentSeries = shouldComputeKpis ? buildSentimentSeries(rows) : [];
 
-  const events: EventRow[] = [];
+  const events: EventRow[] = shouldComputeKpis ? extractEvents(gdRes?.insights) : [];
 
   const volumeValue = metrics ? Intl.NumberFormat().format(metrics.volume) : 'N/A';
   const volumeDelta = metrics ? `${(metrics.delta * 100).toFixed(1)}% vs prev` : '—';
