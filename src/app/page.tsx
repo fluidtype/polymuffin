@@ -48,6 +48,8 @@ export default async function Home() {
 
   const volSeries = movingAverage(toSeries(rows, 'interaction_count'), 28);
   const sentSeries = toSeries(rows, 'avg_sentiment');
+  const hasVolumeSeries = volSeries.length > 0;
+  const hasSentSeries = sentSeries.length > 0;
 
   const events: EventRow[] = [];
 
@@ -95,12 +97,20 @@ export default async function Home() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2 space-y-4">
           <FadeIn>
-            <ChartCard title="Daily volume (28d MA)">
+            <ChartCard
+              title="Daily volume (28d MA)"
+              isEmpty={!hasVolumeSeries}
+              emptyHint="We’ll chart volume once GDELT returns activity for this range."
+            >
               <LineBasic data={volSeries} />
             </ChartCard>
           </FadeIn>
           <FadeIn delay={0.05}>
-            <ChartCard title="Sentiment over time">
+            <ChartCard
+              title="Sentiment over time"
+              isEmpty={!hasSentSeries}
+              emptyHint="Sentiment data will appear as soon as we ingest events."
+            >
               <LineBasic data={sentSeries} color="#ff5a5a" />
             </ChartCard>
           </FadeIn>

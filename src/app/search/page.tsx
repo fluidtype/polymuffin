@@ -77,6 +77,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
     : toSeries(rows, 'interaction_count');
 
   const sentSeries = toSeries(rows, 'avg_sentiment');
+  const hasMainSeries = mainSeries.length > 0;
+  const hasSentSeries = sentSeries.length > 0;
 
   const events: EventRow[] = [];
 
@@ -125,12 +127,20 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2 space-y-4">
           <FadeIn>
-            <ChartCard title={mode === 'bbva' ? 'Relative Coverage (daily)' : 'Daily Volume'}>
+            <ChartCard
+              title={mode === 'bbva' ? 'Relative Coverage (daily)' : 'Daily Volume'}
+              isEmpty={!hasMainSeries}
+              emptyHint="We couldn’t load enough data for this chart. Try expanding the date range."
+            >
               <LineBasic data={mainSeries} />
             </ChartCard>
           </FadeIn>
           <FadeIn delay={0.05}>
-            <ChartCard title="Sentiment over time">
+            <ChartCard
+              title="Sentiment over time"
+              isEmpty={!hasSentSeries}
+              emptyHint="Sentiment will appear once we have GDELT events for this search."
+            >
               <LineBasic data={sentSeries} color="#ff5a5a" />
             </ChartCard>
           </FadeIn>
