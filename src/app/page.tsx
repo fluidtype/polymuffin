@@ -1,237 +1,145 @@
-import { Suspense } from 'react';
-import clsx from 'clsx';
-import FadeIn from '@/components/motion/FadeIn';
-import ChartCard from '@/components/ChartCard';
-import ErrorBanner from '@/components/ErrorBanner';
-import EventsList from '@/components/EventsList';
+import SearchBar from '@/components/SearchBar';
 import KpiCard from '@/components/KpiCard';
+import ChartCard from '@/components/ChartCard';
+import EventsList from '@/components/EventsList';
 import { RightColumn } from '@/components/RightColumn';
-import SectionTitle from '@/components/SectionTitle';
-import Button from '@/components/ui/Button';
-import { withDashboardHeader, type DashboardHeader } from '@/components/DashboardShell';
-import LiveMiniChart from '@/components/charts/LiveMiniChart';
-
+import TrendingTile from '@/components/TrendingTile';
+import { withDashboardHeader } from '@/components/DashboardShell';
 import { lastNDaysISO } from '@/lib/dates';
-import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev } from '@/lib/stats';
-import { buildMainSeries, extractEvents } from '@/lib/gdeltTransforms';
-import { getBaseUrl } from '@/lib/urls';
-import type { GdeltResp, Market, Tweet } from '@/lib/types';
 
-async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(input, init);
-  if (!res.ok) {
-    let detail: string | null = null;
-    try {
-      detail = await res.text();
-    } catch {
-      detail = null;
-    }
-    const message = detail?.trim()?.length
-      ? detail.trim()
-      : res.statusText || 'Request failed';
-    throw new Error(`Request failed with status ${res.status}: ${message}`);
-  }
-  return res.json() as Promise<T>;
-}
-
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === 'string') {
-    return error;
-  }
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return 'Unknown error';
-  }
-}
-
-export const header: DashboardHeader = {
-  title: 'Market pulse',
-  subtitle: 'Global snapshot of prediction-market activity',
+type TrendingItem = {
+  keyword: string;
+  total?: number;
+  avg_tone?: number;
+  temporal?: Record<string, number>;
+  error?: string;
 };
 
-type TwitterResp = { data?: Tweet[] };
-type PolymarketOutcome = { price?: number };
-type PolymarketMarket = Market & { outcomes?: PolymarketOutcome[] };
-type PolymarketResp = { items?: PolymarketMarket[] };
+type TrendingResponse = {
+  items?: TrendingItem[];
+  error?: string;
+};
 
-const timeframes = [
-  { label: '7d', active: false },
-  { label: '30d', active: true },
-  { label: '90d', active: false },
-];
+const TREND_KEYWORDS = ['markets', 'oil', 'semiconductor', 'inflation', 'rates', 'bitcoin'];
+
+function pctChangeFromTemporal(temporal: Record<string, number> = {}) {
+  const entries = Object.entries(temporal).sort(([a], [b]) => a.localeCompare(b));
+  if (entries.length < 2) return 0;
+  const half = Math.floor(entries.length / 2);
+  const prev = entries.slice(0, half).reduce((sum, [, value]) => sum + value, 0) || 1;
+  const curr = entries.slice(half).reduce((sum, [, value]) => sum + value, 0);
+  return ((curr - prev) / prev) * 100;
+}
+
+function buildMockSeries() {
+  return Array.from({ length: 30 }, (_, index) => ({
+    date: `D${index + 1}`,
+    value: 50 + Math.sin(index / 4) * 12 + (Math.random() * 4 - 2),
+  }));
+}
 
 export default async function Home() {
   const { from, to } = lastNDaysISO(30);
-  const baseUrl = await getBaseUrl();
 
-  const gdPromise = fetchJson<GdeltResp>(
-    `${baseUrl}/api/gdeltProxy?q=prediction%20market&from=${from}&to=${to}&gran=auto&mode=context`,
-    { cache: 'no-store' },
+  let trending: TrendingResponse = { items: [] };
+  try {
+    const res = await fetch(`/api/trending?from=${from}&to=${to}`, { cache: 'no-store' });
+    trending = await res.json();
+  } catch {
+    trending = { items: [] };
+  }
+
+  const receivedItems = trending.items ?? [];
+  const itemsByKeyword = new Map(receivedItems.map((item) => [item.keyword, item] as const));
+  const tiles = TREND_KEYWORDS.map((keyword) =>
+    itemsByKeyword.get(keyword) ?? { keyword, total: 0, avg_tone: 0, temporal: {} },
   );
-  const twPromise = fetchJson<TwitterResp>(
-    `${baseUrl}/api/twitter?q=prediction%20market&from=${from}&to=${to}`,
-    { cache: 'no-store' },
-  );
-  const pmPromise = fetchJson<PolymarketResp>(
-    `${baseUrl}/api/polymarket?open=true`,
-    { next: { revalidate: 30 } },
-  );
-  const prevPromise = (async () => {
-    const prevFrom = new Date(from); prevFrom.setDate(prevFrom.getDate() - 30);
-    const prevTo = new Date(to); prevTo.setDate(prevTo.getDate() - 30);
-    const f = prevFrom.toISOString().slice(0, 10);
-    const t = prevTo.toISOString().slice(0, 10);
-    return fetchJson<GdeltResp>(
-      `${baseUrl}/api/gdeltProxy?q=prediction%20market&from=${f}&to=${t}&gran=auto&mode=context`,
-      { cache: 'no-store' },
-    );
-  })();
 
-  const [gdResult, twResult, pmResult, gdPrevResult] = await Promise.allSettled([
-    gdPromise,
-    twPromise,
-    pmPromise,
-    prevPromise,
-  ]);
+  const sorted = [...tiles].sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
+  const main = sorted[0];
 
-  let gdError: string | null = null;
-  const gdRes: GdeltResp | null = gdResult.status === 'fulfilled' ? gdResult.value : null;
-  const gdPrev: GdeltResp | null = gdPrevResult.status === 'fulfilled' ? gdPrevResult.value : null;
-  const twRes: TwitterResp = twResult.status === 'fulfilled' ? twResult.value : { data: [] };
-  const pmRes: PolymarketResp = pmResult.status === 'fulfilled' ? pmResult.value : { items: [] };
-
-  if (gdResult.status === 'rejected') {
-    gdError = toErrorMessage(gdResult.reason);
-  }
-  if (!gdError && gdPrevResult.status === 'rejected') {
-    gdError = `Previous range: ${toErrorMessage(gdPrevResult.reason)}`;
-  }
-  if (!gdError && gdRes?.status === 'error') {
-    gdError = gdRes.error ?? 'Unknown GDELT error';
-  }
-  if (!gdError && gdPrev?.status === 'error') {
-    gdError = `Previous range: ${gdPrev.error ?? 'Unknown GDELT error'}`;
-  }
-
-  const rows = !gdError ? gdRes?.data ?? [] : [];
-  const prevRows = !gdError ? gdPrev?.data ?? [] : [];
-  const metrics = !gdError
-    ? {
-        volume: kpiVolume(rows),
-        sentAvg: kpiSentimentAvg(rows),
-        delta: kpiDeltaVsPrev(rows, prevRows),
-      }
-    : null;
-
-  const volumeValue = metrics ? Intl.NumberFormat().format(metrics.volume) : 'N/A';
-  const volumeDelta = metrics ? `${(metrics.delta * 100).toFixed(1)}% vs prev` : '—';
-  const sentAvgValue = metrics ? `${metrics.sentAvg >= 0 ? '+' : ''}${metrics.sentAvg.toFixed(2)}` : 'N/A';
-  const changeValue = metrics ? `${(metrics.delta * 100).toFixed(1)}%` : 'N/A';
-  const signalsValue = gdError ? 'N/A' : 'OK';
-  const gdeltErrorMessage = gdError ? `Unable to load GDELT data: ${gdError}` : null;
-
-  const trendSeries = buildMainSeries(rows, gdRes.action, gdRes.insights);
-  const events = extractEvents(gdRes.insights);
-
-  const tweets = (twRes.data ?? []).map(tweet => ({
-    id: tweet.id,
-    text: tweet.text,
-    author: tweet.author ?? '@stub',
-    likes: tweet.like_count,
+  const volumeSeries = buildMockSeries();
+  const sentimentSeries = volumeSeries.map((point) => ({
+    date: point.date,
+    value: (point.value - 50) / 25 - 0.2,
   }));
 
-  const markets = (pmRes.items ?? []).slice(0, 6).map(market => ({
-    id: market.id,
-    question: market.question,
-    price: market.outcomes?.[0]?.price,
-    volume: market.volume,
-  }));
-
-  const filters = (
-    <div className="flex flex-wrap items-center justify-center gap-2 md:justify-center">
-      {timeframes.map(({ label, active }) => (
-        <Button
-          key={label}
-          type="button"
-          className={clsx(
-            'px-3 py-1.5 text-xs uppercase tracking-wide',
-            'border border-line-subtle/15 transition-colors',
-            active
-              ? 'bg-brand-red/20 text-white shadow-glowSm border-brand-red/40'
-              : 'bg-white/5 text-text-secondary hover:bg-white/10'
-          )}
-        >
-          {label}
-        </Button>
-      ))}
-    </div>
-  );
+  const events = [
+    { date: '2025-09-27', title: 'Oil spikes on supply fears', tone: -1.2, impact: 2.1, source: 'https://example.com' },
+    { date: '2025-09-26', title: 'Semiconductor rally continues', tone: 1.0, impact: 1.3, source: 'https://example.com' },
+    { date: '2025-09-25', title: 'Rates hold steady', tone: 0.1, impact: 0.8, source: 'https://example.com' },
+  ];
 
   const page = (
     <div className="space-y-6">
-      <SectionTitle title="Market pulse" subtitle={`${from} → ${to}`} />
+      <div className="space-y-2 pt-6">
+        <div className="text-xs uppercase tracking-[0.2em] text-white/60">Realtime Intelligence</div>
+        <h1 className="text-2xl font-semibold">Prediction Market Command</h1>
+        <p className="text-sm text-white/60">
+          Trending narratives from the last 30 days across markets, commodities, macro and crypto.
+        </p>
+      </div>
 
-      {gdeltErrorMessage && (
-        <FadeIn>
-          <ErrorBanner message={gdeltErrorMessage} />
-        </FadeIn>
-      )}
+      <SearchBar />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-        <FadeIn>
-          <KpiCard
-            label="Volume (30d)"
-            value={volumeValue}
-            delta={volumeDelta}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        {tiles.map((item) => (
+          <TrendingTile
+            key={item.keyword}
+            keyword={item.keyword}
+            total={item.total ?? 0}
+            tone={item.avg_tone ?? 0}
+            trend={pctChangeFromTemporal(item.temporal ?? {})}
           />
-        </FadeIn>
-        <FadeIn delay={0.05}>
-          <KpiCard label="Sentiment avg" value={sentAvgValue} />
-        </FadeIn>
-        <FadeIn delay={0.1}>
-          <KpiCard label="Change vs prev" value={changeValue} />
-        </FadeIn>
-        <FadeIn delay={0.15}>
-          <KpiCard label="Signals" value={signalsValue} />
-        </FadeIn>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Top Topic"
+          value={main?.keyword ?? '—'}
+          delta={main ? `${pctChangeFromTemporal(main.temporal ?? {}).toFixed(1)}% trend` : undefined}
+        />
+        <KpiCard
+          label="Events (30d)"
+          value={main ? Intl.NumberFormat().format(main.total ?? 0) : '—'}
+        />
+        <KpiCard
+          label="Sentiment avg"
+          value={main ? `${(main.avg_tone ?? 0) >= 0 ? '+' : ''}${(main.avg_tone ?? 0).toFixed(2)}` : '—'}
+        />
+        <KpiCard label="Signals" value="OK" />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="space-y-4 xl:col-span-2">
-          <FadeIn>
-            <ChartCard
-              title="Daily Events & Trend"
-              data={trendSeries}
-              emptyHint="We’ll render the trend once fresh events arrive."
-            />
-          </FadeIn>
-          <FadeIn delay={0.05}>
-            <EventsList rows={events} />
-          </FadeIn>
+          <ChartCard title="Daily volume (example)" data={volumeSeries} />
+          <ChartCard
+            title="Sentiment over time (example)"
+            data={sentimentSeries}
+            emptyHint="Sentiment preview based on demo data."
+          />
+          <EventsList rows={events} />
         </div>
 
-        <FadeIn delay={0.15}>
-          <RightColumn
-            tweets={tweets}
-            markets={markets}
-            LiveChart={(
-              <Suspense fallback={<div className="h-44 rounded-2xl bg-white/5 animate-pulse" />}>
-                <LiveMiniChart />
-              </Suspense>
-            )}
-          />
-        </FadeIn>
+        <RightColumn
+          tweets={[
+            { id: 't1', text: '[STUB] Top tweet su "prediction market"', author: '@stub', likes: 50 },
+            { id: 't2', text: '[STUB] Oil vs semis narrative', author: '@bob', likes: 42 },
+            { id: 't3', text: '[STUB] Risk sentiment cooling', author: '@alice', likes: 38 },
+          ]}
+          markets={[
+            { id: 'm1', question: 'Bitcoin > $100k by 2025?', price: 0.42, volume: 125000 },
+            { id: 'm2', question: 'US Election outcome?', price: 0.61, volume: 98000 },
+            { id: 'm3', question: 'ETH ETF approved by Q4?', price: 0.35, volume: 56000 },
+          ]}
+        />
       </div>
     </div>
   );
 
   return withDashboardHeader(page, {
-    ...header,
+    title: 'Prediction Market Command',
     subtitle: `${from} → ${to}`,
-    filters,
   });
 }
