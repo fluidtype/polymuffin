@@ -8,9 +8,11 @@ export type GdeltDaily = {
   relative_coverage?: number;
 };
 
+export type GdeltAction = 'context' | 'search' | 'bilateral' | 'bilateral_conflict_coverage';
+
 export type GdeltResp = {
   status?: 'success'|'error';
-  action?: string;
+  action?: GdeltAction;
   granularity?: 'daily'|'monthly';
   data?: GdeltDaily[];
   error?: string;
