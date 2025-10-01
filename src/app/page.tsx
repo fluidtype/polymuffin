@@ -1,11 +1,13 @@
+import clsx from 'clsx';
 import dynamic from 'next/dynamic';
-import SearchBar from '@/components/SearchBar';
-import ChartCard from '@/components/ChartCard';
-import KpiCard from '@/components/KpiCard';
-import EventsList from '@/components/EventsList';
-import { RightColumn } from '@/components/RightColumn';
 import FadeIn from '@/components/motion/FadeIn';
+import ChartCard from '@/components/ChartCard';
+import EventsList from '@/components/EventsList';
+import KpiCard from '@/components/KpiCard';
+import { RightColumn } from '@/components/RightColumn';
 import SectionTitle from '@/components/SectionTitle';
+import Button from '@/components/ui/Button';
+import { withDashboardHeader, type DashboardHeader } from '@/components/DashboardShell';
 
 import { lastNDaysISO } from '@/lib/dates';
 import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev, movingAverage, toSeries } from '@/lib/stats';
@@ -14,13 +16,18 @@ import type { GdeltResp, Market, Tweet } from '@/lib/types';
 
 const TimeSeriesVisx = dynamic(() => import('@/components/charts/TimeSeriesVisx'), {
   ssr: false,
-  loading: () => <div className="h-64 bg-white/5 rounded-2xl animate-pulse" />,
+  loading: () => <div className="h-64 rounded-2xl bg-white/5 animate-pulse" />,
 });
 
 const LiveMiniChart = dynamic(() => import('@/components/charts/LiveMiniChart'), {
   ssr: false,
-  loading: () => <div className="h-44 bg-white/5 rounded-2xl animate-pulse" />,
+  loading: () => <div className="h-44 rounded-2xl bg-white/5 animate-pulse" />,
 });
+
+export const header: DashboardHeader = {
+  title: 'Market pulse',
+  subtitle: 'Global snapshot of prediction-market activity',
+};
 
 type TwitterResp = { data?: Tweet[] };
 type PolymarketOutcome = { price?: number };
@@ -28,6 +35,12 @@ type PolymarketMarket = Market & { outcomes?: PolymarketOutcome[] };
 type PolymarketResp = { items?: PolymarketMarket[] };
 
 type EventRow = { date: string; title: string; tone?: number; impact?: number; source?: string };
+
+const timeframes = [
+  { label: '7d', active: false },
+  { label: '30d', active: true },
+  { label: '90d', active: false },
+];
 
 export default async function Home() {
   const { from, to } = lastNDaysISO(30);
@@ -77,15 +90,31 @@ export default async function Home() {
     volume: market.volume,
   }));
 
-  return (
-    <div className="space-y-6">
-      <div className="pt-6">
-        <SearchBar />
-      </div>
+  const filters = (
+    <div className="flex flex-wrap items-center justify-center gap-2 md:justify-center">
+      {timeframes.map(({ label, active }) => (
+        <Button
+          key={label}
+          type="button"
+          className={clsx(
+            'px-3 py-1.5 text-xs uppercase tracking-wide',
+            'border border-line-subtle/15 transition-colors',
+            active
+              ? 'bg-brand-red/20 text-white shadow-glowSm border-brand-red/40'
+              : 'bg-white/5 text-text-secondary hover:bg-white/10'
+          )}
+        >
+          {label}
+        </Button>
+      ))}
+    </div>
+  );
 
+  const page = (
+    <div className="space-y-6">
       <SectionTitle title="Market pulse" subtitle={`${from} → ${to}`} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
         <FadeIn>
           <KpiCard
             label="Volume (30d)"
@@ -104,8 +133,8 @@ export default async function Home() {
         </FadeIn>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="xl:col-span-2 space-y-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="space-y-4 xl:col-span-2">
           <FadeIn>
             <ChartCard
               title="Daily volume (28d MA)"
@@ -135,4 +164,10 @@ export default async function Home() {
       </div>
     </div>
   );
+
+  return withDashboardHeader(page, {
+    ...header,
+    subtitle: `${from} → ${to}`,
+    filters,
+  });
 }
