@@ -13,7 +13,18 @@ export function withDashboardHeader<T extends ReactElement>(
   element: T,
   header: DashboardHeader,
 ): T & { header: DashboardHeader } {
-  return Object.assign(element, { header });
+  const clone = Object.create(
+    Object.getPrototypeOf(element),
+    Object.getOwnPropertyDescriptors(element),
+  ) as T & { header?: DashboardHeader };
+
+  Object.defineProperty(clone, 'header', {
+    value: header,
+    enumerable: false,
+    configurable: true,
+  });
+
+  return clone as T & { header: DashboardHeader };
 }
 
 export default function DashboardShell({ children, header }: DashboardShellProps) {
