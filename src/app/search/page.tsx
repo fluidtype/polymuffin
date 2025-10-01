@@ -1,4 +1,3 @@
-import { Suspense } from 'react';
 import FadeIn from '@/components/motion/FadeIn';
 import ChartCard from '@/components/ChartCard';
 import EventsList from '@/components/EventsList';
@@ -7,7 +6,6 @@ import SearchBar from '@/components/SearchBar';
 import { RightColumn } from '@/components/RightColumn';
 import SectionTitle from '@/components/SectionTitle';
 import { withDashboardHeader, type DashboardHeader } from '@/components/DashboardShell';
-import TimeSeriesVisx from '@/components/charts/TimeSeriesVisx';
 
 import { parseQuery } from '@/lib/queryParser';
 import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev, toSeries, seriesCoverage } from '@/lib/stats';
@@ -82,11 +80,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
   const mainSeries = mode === 'bbva'
     ? seriesCoverage(rows)
     : toSeries(rows, 'interaction_count');
-  const mainSeriesId = mode === 'bbva' ? 'coverage' : 'volume';
 
   const sentSeries = toSeries(rows, 'avg_sentiment');
-  const hasMainSeries = mainSeries.length > 0;
-  const hasSentSeries = sentSeries.length > 0;
 
   const events: EventRow[] = [];
 
@@ -133,24 +128,16 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
           <FadeIn>
             <ChartCard
               title={mode === 'bbva' ? 'Relative Coverage (daily)' : 'Daily Volume'}
-              isEmpty={!hasMainSeries}
-              emptyHint="We couldn’t load enough data for this chart. Try expanding the date range."
-            >
-              <Suspense fallback={<div className="h-64 rounded-2xl bg-white/5 animate-pulse" />}>
-                <TimeSeriesVisx series={[{ id: mainSeriesId, data: mainSeries }]} />
-              </Suspense>
-            </ChartCard>
+              data={mainSeries}
+              emptyHint="We couldn't load enough data for this chart. Try expanding the date range."
+            />
           </FadeIn>
           <FadeIn delay={0.05}>
             <ChartCard
               title="Sentiment over time"
-              isEmpty={!hasSentSeries}
+              data={sentSeries}
               emptyHint="Sentiment will appear once we have GDELT events for this search."
-            >
-              <Suspense fallback={<div className="h-64 rounded-2xl bg-white/5 animate-pulse" />}>
-                <TimeSeriesVisx series={[{ id: 'sentiment', data: sentSeries }]} />
-              </Suspense>
-            </ChartCard>
+            />
           </FadeIn>
           <FadeIn delay={0.1}>
             <EventsList rows={events} />
