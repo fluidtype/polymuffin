@@ -1,38 +1,37 @@
 import type { Config } from 'tailwindcss';
-
 const config: Config = {
-  content: [
-    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './src/components/**/*.{js,ts,jsx,tsx,mdx}',
-    './src/app/**/*.{js,ts,jsx,tsx,mdx}',
-  ],
+  content: ['./src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        brand: {
-          body: '#05060a',
-          panel: 'rgba(14,16,24,0.85)',
-          sidebar: 'rgba(9,10,15,0.88)',
-          red: '#ff4d57',
-          ember: '#ff7660',
+        // semantic tokens (dark)
+        bg: {
+          base: 'rgb(var(--bg-base) / <alpha-value>)',        // main page background (glass over shader)
+          surface: 'rgb(var(--bg-surface) / <alpha-value>)',  // cards/panels
         },
-        glass: 'rgba(255,255,255,0.08)',
-      },
-      boxShadow: {
-        glowSm:
-          '0 0 0 1px rgba(255,77,87,0.25), 0 12px 30px -18px rgba(255,77,87,0.55)',
-        glowMd:
-          '0 0 0 1px rgba(255,77,87,0.3), 0 28px 60px -24px rgba(255,77,87,0.5)',
+        text: {
+          primary: 'rgb(var(--text-primary) / <alpha-value>)',
+          secondary: 'rgb(var(--text-secondary) / <alpha-value>)',
+          muted: 'rgb(var(--text-muted) / <alpha-value>)',
+        },
+        brand: {
+          red: 'rgb(var(--brand-red) / <alpha-value>)',
+          redSoft: 'rgb(var(--brand-red-soft) / <alpha-value>)',
+        },
+        line: {
+          subtle: 'rgb(var(--line-subtle) / <alpha-value>)',
+        },
       },
       borderRadius: {
-        '3xl': '1.75rem',
+        xl: '1rem',
+        '2xl': '1.25rem',
       },
-      fontFamily: {
-        sans: ['"Space Grotesk"', 'Inter', 'system-ui', 'sans-serif'],
+      boxShadow: {
+        glow: '0 0 22px rgba(255,45,45,.28)',
+        glowSm: '0 0 12px rgba(255,45,45,.18)',
       },
     },
   },
   plugins: [],
 };
-
 export default config;
