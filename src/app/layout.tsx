@@ -2,7 +2,7 @@ import './globals.css';
 import { isValidElement } from 'react';
 import type { Metadata } from 'next';
 import DashboardShell, { type DashboardHeader } from '@/components/DashboardShell';
-import ShaderBg from '@/components/ShaderBgClient';
+import ShaderBg from '@/components/ShaderBg';
 import CommandPalette from '@/components/CommandPaletteProvider';
 
 export const metadata: Metadata = {
