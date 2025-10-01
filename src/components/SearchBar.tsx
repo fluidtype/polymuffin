@@ -8,7 +8,8 @@ import Input from './ui/Input';
 import Button, { PrimaryButton } from './ui/Button';
 import type { Granularity, Source } from '@/lib/searchModel';
 import { defaultSearchParams } from '@/lib/searchModel';
-import { guardDateRange } from '@/lib/guards';
+import { guardDateRange, daysDiff, suggestGranularity } from '@/lib/guards';
+import Banner from './Banner';
 
 const toQS = (o: Record<string, string>) => new URLSearchParams(o).toString();
 
@@ -33,6 +34,7 @@ export default function SearchBar() {
   const [gran, setGran] = useState<Granularity>(init.gran);
   const [sources, setSources] = useState<Source[]>(init.sources);
   const [err, setErr] = useState<string | null>(null);
+  const [warn, setWarn] = useState<string | null>(null);
 
   useEffect(() => {
     setQ(init.q);
@@ -40,6 +42,8 @@ export default function SearchBar() {
     setTo(init.to);
     setGran(init.gran);
     setSources(init.sources);
+    setErr(null);
+    setWarn(null);
   }, [init]);
 
   const toggle = (s: Source) =>
@@ -50,11 +54,28 @@ export default function SearchBar() {
     const eMsg = guardDateRange(from, to);
     if (eMsg) {
       setErr(eMsg);
+      setWarn(null);
       return;
     }
     setErr(null);
+
+    const diff = daysDiff(from, to);
+    let nextGran: Granularity = gran;
+    if (gran === 'auto') {
+      const suggested = suggestGranularity(from, to);
+      if (suggested === 'daily' && diff > 365) {
+        nextGran = 'monthly';
+        setWarn('Intervallo > 365 giorni: passo automaticamente a monthly.');
+      } else {
+        nextGran = suggested;
+        setWarn(null);
+      }
+    } else {
+      setWarn(null);
+    }
+
     const src = sources.join(',');
-    r.push(`/search?${toQS({ q, from, to, gran, src })}`);
+    r.push(`/search?${toQS({ q, from, to, gran: nextGran, src })}`);
   };
 
   const rangeDays = Math.round((+new Date(to) - +new Date(from)) / 86400000);
@@ -62,6 +83,7 @@ export default function SearchBar() {
   return (
     <form onSubmit={onSubmit} className="w-full space-y-4">
       {err && <ErrorBanner message={err} />}
+      {warn && <Banner kind="warn">{warn}</Banner>}
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center">
         <Input

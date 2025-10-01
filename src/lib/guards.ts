@@ -1,4 +1,4 @@
-import { daysBetween } from './dates';
+import { differenceInCalendarDays, parseISO } from 'date-fns';
 
 export function guardDateRange(from: string, to: string) {
   if (!from || !to) return 'Seleziona un intervallo valido.';
@@ -7,5 +7,10 @@ export function guardDateRange(from: string, to: string) {
 }
 
 export function suggestGranularity(from: string, to: string): 'daily' | 'monthly' {
-  return daysBetween(from, to) <= 365 ? 'daily' : 'monthly';
+  const d = differenceInCalendarDays(parseISO(to), parseISO(from));
+  return d <= 365 ? 'daily' : 'monthly';
+}
+
+export function daysDiff(from: string, to: string) {
+  return differenceInCalendarDays(parseISO(to), parseISO(from));
 }

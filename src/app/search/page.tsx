@@ -1,250 +1,294 @@
-import FadeIn from '@/components/motion/FadeIn';
+import type { ReactNode } from 'react';
+
+import SearchBar from '@/components/SearchBar';
 import ChartCard from '@/components/ChartCard';
-import ErrorBanner from '@/components/ErrorBanner';
 import EventsList from '@/components/EventsList';
 import KpiCard from '@/components/KpiCard';
-import SearchBar from '@/components/SearchBar';
 import { RightColumn } from '@/components/RightColumn';
-import SectionTitle from '@/components/SectionTitle';
+import Banner from '@/components/Banner';
 import { withDashboardHeader, type DashboardHeader } from '@/components/DashboardShell';
 
 import { parseQuery } from '@/lib/queryParser';
-import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev, toSeries, seriesCoverage } from '@/lib/stats';
+import { suggestGranularity, daysDiff } from '@/lib/guards';
+import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev } from '@/lib/stats';
 import { getBaseUrl } from '@/lib/urls';
-import type { GdeltResp, Market, Tweet } from '@/lib/types';
+import { lastNDaysISO, yyyymmddToIso } from '@/lib/dates';
+import type { GdeltDaily, GdeltResp, Market, Tweet } from '@/lib/types';
 
-async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(input, init);
-  if (!res.ok) {
-    let detail: string | null = null;
-    try {
-      detail = await res.text();
-    } catch {
-      detail = null;
-    }
-    const message = detail?.trim()?.length
-      ? detail.trim()
-      : res.statusText || 'Request failed';
-    throw new Error(`Request failed with status ${res.status}: ${message}`);
-  }
-  return res.json() as Promise<T>;
-}
-
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === 'string') {
-    return error;
-  }
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return 'Unknown error';
-  }
-}
-
-export const header: DashboardHeader = {
+const header: DashboardHeader = {
   title: 'Search',
   subtitle: 'Investigate narratives across sources',
 };
 
-type TwitterResp = { data?: Tweet[] };
-type PolymarketOutcome = { price?: number };
-type PolymarketMarket = Market & { outcomes?: PolymarketOutcome[] };
-type PolymarketResp = { items?: PolymarketMarket[] };
-
-type EventRow = { date: string; title: string; tone?: number; impact?: number; source?: string };
-
 type SearchParams = Record<string, string | string[]>;
 
-export default async function SearchPage({ searchParams }: { searchParams: SearchParams }) {
-  const q = (typeof searchParams.q === 'string' ? searchParams.q : searchParams.q?.[0]) ?? '';
-  const from = (typeof searchParams.from === 'string' ? searchParams.from : searchParams.from?.[0])
-    ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  const to = (typeof searchParams.to === 'string' ? searchParams.to : searchParams.to?.[0])
-    ?? new Date().toISOString().slice(0, 10);
-  const gran = ((typeof searchParams.gran === 'string' ? searchParams.gran : searchParams.gran?.[0]) ?? 'auto') as 'auto' | 'daily' | 'monthly';
-  const srcParam = (typeof searchParams.src === 'string' ? searchParams.src : searchParams.src?.[0]) ?? 'gdelt,twitter,polymarket';
+type SearchPageProps = {
+  searchParams: Promise<SearchParams>;
+};
+
+type TwitterResp = { data?: Tweet[]; error?: string };
+type PolymarketOutcome = { price?: number };
+type PolymarketMarket = Market & { outcomes?: PolymarketOutcome[] };
+type PolymarketResp = { items?: PolymarketMarket[]; error?: string };
+
+type FetchResult<T> = { data: T | null; error: string | null };
+
+type GdeltRow = GdeltDaily & { MonthYear?: number; date?: string };
+
+type Mode = 'context' | 'bilateral' | 'bbva';
+
+function readParam(value: string | string[] | undefined) {
+  if (typeof value === 'string') return value;
+  return value?.[0];
+}
+
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<FetchResult<T>> {
+  try {
+    const res = await fetch(url, init);
+    if (!res.ok) {
+      const detail = res.statusText || 'Request failed';
+      return { data: null, error: `${res.status} ${detail}` };
+    }
+    const data = (await res.json()) as T;
+    return { data, error: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return { data: null, error: message };
+  }
+}
+
+function monthYearToIso(monthYear: number | string) {
+  const normalized = String(monthYear);
+  if (normalized.includes('-')) {
+    if (/^\d{4}-\d{2}$/.test(normalized)) return `${normalized}-01`;
+    return normalized;
+  }
+  const digits = normalized.replace(/[^0-9]/g, '');
+  const padded = digits.length >= 6 ? digits.slice(0, 6) : digits.padEnd(6, '0');
+  const year = padded.slice(0, 4);
+  const month = padded.slice(4, 6) || '01';
+  return `${year}-${month}-01`;
+}
+
+function resolveDate(row: GdeltRow, index: number) {
+  if (row.DayDate) return yyyymmddToIso(row.DayDate);
+  if (row.date) return row.date;
+  if (row.MonthYear) return monthYearToIso(row.MonthYear);
+  return `${index}`;
+}
+
+function toSeries(rows: GdeltRow[] = [], key: keyof GdeltRow) {
+  return rows.map((row, index) => ({
+    date: resolveDate(row, index),
+    value: Number((row as Record<string, unknown>)[key] ?? 0),
+  }));
+}
+
+function coverageSeries(rows: GdeltRow[] = []) {
+  return toSeries(rows, 'relative_coverage').map((point) => ({
+    ...point,
+    value: point.value * 100,
+  }));
+}
+
+function previousRange(from: string, to: string, gran: 'daily' | 'monthly') {
+  const offset = gran === 'daily' ? 30 : 31;
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  fromDate.setDate(fromDate.getDate() - offset);
+  toDate.setDate(toDate.getDate() - offset);
+  return {
+    from: fromDate.toISOString().slice(0, 10),
+    to: toDate.toISOString().slice(0, 10),
+  };
+}
+
+function deriveMode(q: string): Mode {
+  const parsed = parseQuery(q);
+  if (parsed.kind === 'bilateralDirectional') return 'bbva';
+  if (parsed.kind === 'bilateral') return 'bilateral';
+  return 'context';
+}
+
+export default async function SearchPage({ searchParams }: SearchPageProps) {
+  const params = await searchParams;
+  const qParam = readParam(params.q) ?? '';
+  const fallbackRange = lastNDaysISO(30);
+  const from = readParam(params.from) ?? fallbackRange.from;
+  const to = readParam(params.to) ?? fallbackRange.to;
+  const explicitGran = (readParam(params.gran) ?? 'auto') as 'auto' | 'daily' | 'monthly';
+  const gran = explicitGran === 'auto' ? suggestGranularity(from, to) : explicitGran;
+  const srcParam = readParam(params.src) ?? 'gdelt,twitter,polymarket';
   const want = new Set(srcParam.split(',').filter(Boolean));
+
+  const mode = deriveMode(qParam);
   const baseUrl = await getBaseUrl();
 
-  const parsed = parseQuery(q);
-  const mode = parsed.kind === 'bilateralDirectional' ? 'bbva'
-    : parsed.kind === 'bilateral' ? 'bilateral'
-      : 'context';
-
-  const gdPromise: Promise<GdeltResp | null> = want.has('gdelt')
+  const gdeltPromise = want.has('gdelt')
     ? fetchJson<GdeltResp>(
-        `${baseUrl}/api/gdeltProxy?q=${encodeURIComponent(q)}&from=${from}&to=${to}&gran=${gran}&mode=${mode}`,
+        `${baseUrl}/api/gdeltProxy?q=${encodeURIComponent(qParam)}&from=${from}&to=${to}&gran=${gran}&mode=${mode}`,
         { cache: 'no-store' },
       )
-    : Promise.resolve(null);
+    : Promise.resolve<FetchResult<GdeltResp>>({ data: null, error: null });
 
-  const twPromise: Promise<TwitterResp | null> = want.has('twitter')
+  const twitterPromise = want.has('twitter')
     ? fetchJson<TwitterResp>(
-        `${baseUrl}/api/twitter?q=${encodeURIComponent(q)}&from=${from}&to=${to}`,
+        `${baseUrl}/api/twitter?q=${encodeURIComponent(qParam)}&from=${from}&to=${to}`,
         { cache: 'no-store' },
       )
-    : Promise.resolve(null);
+    : Promise.resolve<FetchResult<TwitterResp>>({ data: null, error: null });
 
-  const pmPromise: Promise<PolymarketResp | null> = want.has('polymarket')
+  const polymarketPromise = want.has('polymarket')
     ? fetchJson<PolymarketResp>(
-        `${baseUrl}/api/polymarket?q=${encodeURIComponent(q)}&open=true`,
+        `${baseUrl}/api/polymarket?q=${encodeURIComponent(qParam)}&open=true`,
         { next: { revalidate: 30 } },
       )
-    : Promise.resolve(null);
+    : Promise.resolve<FetchResult<PolymarketResp>>({ data: null, error: null });
 
-  const gdPrevPromise: Promise<GdeltResp | null> = want.has('gdelt')
-    ? (async () => {
-        const pf = new Date(from); pf.setDate(pf.getDate() - 30);
-        const pt = new Date(to); pt.setDate(pt.getDate() - 30);
-        const f = pf.toISOString().slice(0, 10);
-        const t = pt.toISOString().slice(0, 10);
-        return fetchJson<GdeltResp>(
-          `${baseUrl}/api/gdeltProxy?q=${encodeURIComponent(q)}&from=${f}&to=${t}&gran=${gran}&mode=${mode}`,
-          { cache: 'no-store' },
-        );
-      })()
-    : Promise.resolve(null);
+  const prevRange = previousRange(from, to, gran);
+  const gdeltPrevPromise = want.has('gdelt')
+    ? fetchJson<GdeltResp>(
+        `${baseUrl}/api/gdeltProxy?q=${encodeURIComponent(qParam)}&from=${prevRange.from}&to=${prevRange.to}&gran=${gran}&mode=${mode}`,
+        { cache: 'no-store' },
+      )
+    : Promise.resolve<FetchResult<GdeltResp>>({ data: null, error: null });
 
-  const [gdResult, twResult, pmResult, gdPrevResult] = await Promise.allSettled([
-    gdPromise,
-    twPromise,
-    pmPromise,
-    gdPrevPromise,
+  const [gdeltResult, twitterResult, polymarketResult, gdeltPrevResult] = await Promise.all([
+    gdeltPromise,
+    twitterPromise,
+    polymarketPromise,
+    gdeltPrevPromise,
   ]);
 
-  let gdError: string | null = null;
-  const gdRes: GdeltResp | null = gdResult.status === 'fulfilled' ? gdResult.value : null;
-  const gdPrev: GdeltResp | null = gdPrevResult.status === 'fulfilled' ? gdPrevResult.value : null;
-  const twRes: TwitterResp | null = twResult.status === 'fulfilled' ? twResult.value : null;
-  const pmRes: PolymarketResp | null = pmResult.status === 'fulfilled' ? pmResult.value : null;
-
-  if (gdResult.status === 'rejected') {
-    gdError = toErrorMessage(gdResult.reason);
-  }
-  if (!gdError && gdPrevResult.status === 'rejected') {
-    gdError = `Previous range: ${toErrorMessage(gdPrevResult.reason)}`;
-  }
-  if (!gdError && gdRes?.status === 'error') {
-    gdError = gdRes.error ?? 'Unknown GDELT error';
-  }
-  if (!gdError && gdPrev?.status === 'error') {
-    gdError = `Previous range: ${gdPrev.error ?? 'Unknown GDELT error'}`;
+  let gdeltError: string | null = null;
+  if (gdeltResult.error) {
+    gdeltError = gdeltResult.error;
+  } else if (gdeltResult.data?.status === 'error') {
+    gdeltError = gdeltResult.data.error ?? 'Errore GDELT sconosciuto.';
   }
 
-  const rows = !gdError && gdRes ? gdRes.data ?? [] : [];
-  const prevRows = !gdError && gdPrev ? gdPrev.data ?? [] : [];
+  if (!gdeltError) {
+    if (gdeltPrevResult.error) {
+      gdeltError = `Previous range: ${gdeltPrevResult.error}`;
+    } else if (gdeltPrevResult.data?.status === 'error') {
+      gdeltError = `Previous range: ${gdeltPrevResult.data.error ?? 'Errore GDELT sconosciuto.'}`;
+    }
+  }
 
-  const shouldComputeKpis = !gdError && want.has('gdelt');
-  const metrics = shouldComputeKpis
-    ? {
-        volume: kpiVolume(rows),
-        sentAvg: kpiSentimentAvg(rows),
-        delta: kpiDeltaVsPrev(rows, prevRows),
-      }
-    : null;
+  const rows = !gdeltError && gdeltResult.data?.status !== 'error' ? (gdeltResult.data?.data as GdeltRow[] | undefined) ?? [] : [];
+  const prevRows =
+    !gdeltError && gdeltPrevResult.data?.status !== 'error'
+      ? (gdeltPrevResult.data?.data as GdeltRow[] | undefined) ?? []
+      : [];
+
+  const shouldComputeKpis = !gdeltError && want.has('gdelt');
+  const volume = shouldComputeKpis ? kpiVolume(rows) : 0;
+  const sentimentAvg = shouldComputeKpis ? kpiSentimentAvg(rows) : 0;
+  const delta = shouldComputeKpis ? kpiDeltaVsPrev(rows, prevRows) : 0;
+
+  const volumeValue = shouldComputeKpis ? Intl.NumberFormat().format(volume) : 'N/A';
+  const volumeDelta = shouldComputeKpis ? `${(delta * 100).toFixed(1)}% vs prev` : '—';
+  const sentimentValue = shouldComputeKpis
+    ? `${sentimentAvg >= 0 ? '+' : ''}${sentimentAvg.toFixed(2)}`
+    : 'N/A';
+  const changeValue = shouldComputeKpis ? `${(delta * 100).toFixed(1)}%` : 'N/A';
 
   const mainSeries = shouldComputeKpis
     ? mode === 'bbva'
-      ? seriesCoverage(rows)
+      ? coverageSeries(rows)
       : toSeries(rows, 'interaction_count')
     : [];
 
-  const sentSeries = shouldComputeKpis ? toSeries(rows, 'avg_sentiment') : [];
+  const sentimentSeries = shouldComputeKpis ? toSeries(rows, 'avg_sentiment') : [];
 
-  const events: EventRow[] = [];
+  const autoMonthly = explicitGran === 'auto' && gran === 'monthly';
+  const rangeTooWide = autoMonthly && daysDiff(from, to) > 365;
 
-  const volumeValue = metrics ? Intl.NumberFormat().format(metrics.volume) : 'N/A';
-  const volumeDelta = metrics ? `${(metrics.delta * 100).toFixed(1)}% vs prev` : '—';
-  const sentAvgValue = metrics ? `${metrics.sentAvg >= 0 ? '+' : ''}${metrics.sentAvg.toFixed(2)}` : 'N/A';
-  const changeValue = metrics ? `${(metrics.delta * 100).toFixed(1)}%` : 'N/A';
-  const relCoverageValue = metrics && rows.length
-    ? `${((rows[rows.length - 1]?.relative_coverage ?? 0) * 100).toFixed(2)}%`
-    : 'N/A';
-  const signalsValue = shouldComputeKpis ? 'OK' : 'N/A';
-  const gdeltErrorMessage = gdError ? `Unable to load GDELT data: ${gdError}` : null;
+  const banners: ReactNode[] = [];
+  if (mode === 'bbva') {
+    banners.push(
+      <Banner key="bbva">Modalità BBVA attiva (analisi direzionale “actor1 → actor2”).</Banner>,
+    );
+  }
+  if (rangeTooWide) {
+    banners.push(
+      <Banner key="wide" kind="warn">
+        Intervallo &gt; 365 giorni: granularità giornaliera non disponibile, uso automatico di monthly.
+      </Banner>,
+    );
+  }
+  if (gdeltError) {
+    banners.push(
+      <Banner key="gdelt-error" kind="error">
+        {gdeltError}
+      </Banner>,
+    );
+  }
 
-  const tweets = (twRes?.data ?? []).map(tweet => ({
+  const tweets = (twitterResult.data?.data ?? []).map((tweet) => ({
     id: tweet.id,
     text: tweet.text,
     author: tweet.author ?? '@stub',
     likes: tweet.like_count,
   }));
 
-  const markets = (pmRes?.items ?? []).slice(0, 6).map(market => ({
-    id: market.id,
-    question: market.question,
-    price: market.outcomes?.[0]?.price,
-    volume: market.volume,
-  }));
+  const markets = (polymarketResult.data?.items ?? [])
+    .slice(0, 6)
+    .map((market) => ({
+      id: market.id,
+      question: market.question,
+      price: market.outcomes?.[0]?.price,
+      volume: market.volume,
+    }));
+
+  const relCoverageValue = shouldComputeKpis && rows.length
+    ? `${(((rows[rows.length - 1] as GdeltRow)?.relative_coverage ?? 0) * 100).toFixed(2)}%`
+    : 'N/A';
+  const signalsValue = shouldComputeKpis ? 'OK' : 'N/A';
 
   const page = (
     <div className="space-y-6">
-      <SectionTitle
-        title={`Results for “${q}”`}
-        subtitle={`Range: ${from} → ${to} · gran: ${gran}`}
-      />
+      <div className="pt-6">
+        <SearchBar />
+      </div>
 
-      {gdeltErrorMessage && (
-        <FadeIn>
-          <ErrorBanner message={gdeltErrorMessage} />
-        </FadeIn>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl font-semibold text-white">Results for “{qParam || '—'}”</h1>
+        <div className="text-xs text-white/60">Range: {from} → {to} · gran: {gran}</div>
+      </div>
+
+      {banners.length > 0 && (
+        <div className="space-y-3">{banners}</div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-        <FadeIn>
-          <KpiCard label="Volume" value={volumeValue} delta={volumeDelta} />
-        </FadeIn>
-        <FadeIn delay={0.05}>
-          <KpiCard label="Sentiment avg" value={sentAvgValue} />
-        </FadeIn>
-        <FadeIn delay={0.1}>
-          <KpiCard label="Change vs prev" value={changeValue} />
-        </FadeIn>
-        <FadeIn delay={0.15}>
-          {mode === 'bbva'
-            ? <KpiCard label="Rel. Coverage" value={relCoverageValue} />
-            : <KpiCard label="Signals" value={signalsValue} />}
-        </FadeIn>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard label="Volume" value={volumeValue} delta={volumeDelta} />
+        <KpiCard label="Sentiment avg" value={sentimentValue} />
+        <KpiCard label="Change vs prev" value={changeValue} />
+        {mode === 'bbva'
+          ? <KpiCard label="Rel. Coverage" value={relCoverageValue} />
+          : <KpiCard label="Signals" value={signalsValue} />}
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="space-y-4 xl:col-span-2">
-          <FadeIn>
-            <ChartCard
-              title={mode === 'bbva' ? 'Relative Coverage (daily)' : 'Daily Volume'}
-              data={mainSeries}
-              emptyHint="We couldn't load enough data for this chart. Try expanding the date range."
-            />
-          </FadeIn>
-          <FadeIn delay={0.05}>
-            <ChartCard
-              title="Sentiment over time"
-              data={sentSeries}
-              emptyHint="Sentiment will appear once we have GDELT events for this search."
-            />
-          </FadeIn>
-          <FadeIn delay={0.1}>
-            <EventsList rows={events} />
-          </FadeIn>
+          <ChartCard
+            title={mode === 'bbva' ? 'Relative Coverage' : 'Daily Volume'}
+            data={mainSeries}
+            emptyHint="Non ci sono dati sufficienti per mostrare questa serie."
+          />
+          <ChartCard
+            title="Sentiment over time"
+            data={sentimentSeries}
+            emptyHint="Il sentiment apparirà quando saranno disponibili eventi GDELT per questa ricerca."
+          />
+          <EventsList rows={[]} />
         </div>
 
-        <FadeIn delay={0.15}>
-          <RightColumn tweets={tweets} markets={markets} />
-        </FadeIn>
+        <RightColumn tweets={tweets} markets={markets} />
       </div>
     </div>
   );
 
-  return withDashboardHeader(page, {
-    ...header,
-    subtitle: `“${q || 'all'}” · ${from} → ${to}`,
-    filters: (
-      <div className="w-full md:max-w-2xl">
-        <SearchBar />
-      </div>
-    ),
-  });
+  return withDashboardHeader(page, header);
 }
