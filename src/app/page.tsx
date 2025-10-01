@@ -7,6 +7,7 @@ import { RightColumn } from '@/components/RightColumn';
 
 import { lastNDaysISO } from '@/lib/dates';
 import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev, movingAverage, toSeries } from '@/lib/stats';
+import { getBaseUrl } from '@/lib/urls';
 import type { GdeltResp, Market, Tweet } from '@/lib/types';
 
 type TwitterResp = { data?: Tweet[] };
@@ -18,19 +19,20 @@ type EventRow = { date: string; title: string; tone?: number; impact?: number; s
 
 export default async function Home() {
   const { from, to } = lastNDaysISO(30);
+  const baseUrl = await getBaseUrl();
 
-  const gdPromise = fetch(`/api/gdeltProxy?q=prediction%20market&from=${from}&to=${to}&gran=auto&mode=context`, { cache: 'no-store' })
+  const gdPromise = fetch(`${baseUrl}/api/gdeltProxy?q=prediction%20market&from=${from}&to=${to}&gran=auto&mode=context`, { cache: 'no-store' })
     .then(res => res.json() as Promise<GdeltResp>);
-  const twPromise = fetch(`/api/twitter?q=prediction%20market&from=${from}&to=${to}`, { cache: 'no-store' })
+  const twPromise = fetch(`${baseUrl}/api/twitter?q=prediction%20market&from=${from}&to=${to}`, { cache: 'no-store' })
     .then(res => res.json() as Promise<TwitterResp>);
-  const pmPromise = fetch(`/api/polymarket?open=true`, { next: { revalidate: 30 } })
+  const pmPromise = fetch(`${baseUrl}/api/polymarket?open=true`, { next: { revalidate: 30 } })
     .then(res => res.json() as Promise<PolymarketResp>);
   const prevPromise = (async () => {
     const prevFrom = new Date(from); prevFrom.setDate(prevFrom.getDate() - 30);
     const prevTo = new Date(to); prevTo.setDate(prevTo.getDate() - 30);
     const f = prevFrom.toISOString().slice(0, 10);
     const t = prevTo.toISOString().slice(0, 10);
-    return fetch(`/api/gdeltProxy?q=prediction%20market&from=${f}&to=${t}&gran=auto&mode=context`, { cache: 'no-store' })
+    return fetch(`${baseUrl}/api/gdeltProxy?q=prediction%20market&from=${f}&to=${t}&gran=auto&mode=context`, { cache: 'no-store' })
       .then(res => res.json() as Promise<GdeltResp>);
   })();
 

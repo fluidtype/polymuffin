@@ -7,6 +7,7 @@ import { RightColumn } from '@/components/RightColumn';
 
 import { parseQuery } from '@/lib/queryParser';
 import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev, toSeries, seriesCoverage } from '@/lib/stats';
+import { getBaseUrl } from '@/lib/urls';
 import type { GdeltResp, Market, Tweet } from '@/lib/types';
 
 type TwitterResp = { data?: Tweet[] };
@@ -27,6 +28,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
   const gran = ((typeof searchParams.gran === 'string' ? searchParams.gran : searchParams.gran?.[0]) ?? 'auto') as 'auto' | 'daily' | 'monthly';
   const srcParam = (typeof searchParams.src === 'string' ? searchParams.src : searchParams.src?.[0]) ?? 'gdelt,twitter,polymarket';
   const want = new Set(srcParam.split(',').filter(Boolean));
+  const baseUrl = await getBaseUrl();
 
   const parsed = parseQuery(q);
   const mode = parsed.kind === 'bilateralDirectional' ? 'bbva'
@@ -34,17 +36,17 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
       : 'context';
 
   const gdPromise: Promise<GdeltResp | null> = want.has('gdelt')
-    ? fetch(`/api/gdeltProxy?q=${encodeURIComponent(q)}&from=${from}&to=${to}&gran=${gran}&mode=${mode}`, { cache: 'no-store' })
+    ? fetch(`${baseUrl}/api/gdeltProxy?q=${encodeURIComponent(q)}&from=${from}&to=${to}&gran=${gran}&mode=${mode}`, { cache: 'no-store' })
       .then(res => res.json() as Promise<GdeltResp>)
     : Promise.resolve(null);
 
   const twPromise: Promise<TwitterResp | null> = want.has('twitter')
-    ? fetch(`/api/twitter?q=${encodeURIComponent(q)}&from=${from}&to=${to}`, { cache: 'no-store' })
+    ? fetch(`${baseUrl}/api/twitter?q=${encodeURIComponent(q)}&from=${from}&to=${to}`, { cache: 'no-store' })
       .then(res => res.json() as Promise<TwitterResp>)
     : Promise.resolve(null);
 
   const pmPromise: Promise<PolymarketResp | null> = want.has('polymarket')
-    ? fetch(`/api/polymarket?q=${encodeURIComponent(q)}&open=true`, { next: { revalidate: 30 } })
+    ? fetch(`${baseUrl}/api/polymarket?q=${encodeURIComponent(q)}&open=true`, { next: { revalidate: 30 } })
       .then(res => res.json() as Promise<PolymarketResp>)
     : Promise.resolve(null);
 
@@ -54,7 +56,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
       const pt = new Date(to); pt.setDate(pt.getDate() - 30);
       const f = pf.toISOString().slice(0, 10);
       const t = pt.toISOString().slice(0, 10);
-      return fetch(`/api/gdeltProxy?q=${encodeURIComponent(q)}&from=${f}&to=${t}&gran=${gran}&mode=${mode}`, { cache: 'no-store' })
+      return fetch(`${baseUrl}/api/gdeltProxy?q=${encodeURIComponent(q)}&from=${f}&to=${t}&gran=${gran}&mode=${mode}`, { cache: 'no-store' })
         .then(res => res.json() as Promise<GdeltResp>);
     })()
     : Promise.resolve(null);
