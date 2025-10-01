@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
+import { MessageCircle, TrendingUp } from 'lucide-react';
 import Card from './ui/Card';
 import Badge from './ui/Badge';
+import Icon from './ui/Icon';
 
 export function RightColumn({
   tweets,
@@ -31,10 +33,18 @@ export function RightColumn({
         {tweets.length ? (
           <ul className="space-y-3">
             {tweets.map((tweet) => (
-              <li key={tweet.id} className="rounded-xl border border-line-subtle/10 bg-white/5 p-3">
-                <div className="text-sm text-white/90">{tweet.text}</div>
-                <div className="text-xs text-text-secondary mt-2">
-                  {tweet.author} · ❤ {tweet.likes ?? 0}
+              <li
+                key={tweet.id}
+                className="flex items-start gap-3 rounded-xl border border-line-subtle/10 bg-white/5 p-3"
+              >
+                <span className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/8 text-brand-red">
+                  <Icon I={MessageCircle} className="h-4 w-4" />
+                </span>
+                <div className="space-y-2">
+                  <div className="text-sm text-white/90">{tweet.text}</div>
+                  <div className="text-xs text-text-secondary">
+                    {tweet.author} · ❤ {tweet.likes ?? 0}
+                  </div>
                 </div>
               </li>
             ))}
@@ -51,12 +61,23 @@ export function RightColumn({
         </div>
         {markets.length ? (
           <ul className="space-y-3">
-            {markets.map((market) => (
-              <li key={market.id} className="rounded-xl border border-line-subtle/10 bg-white/5 p-3">
-                <div className="text-sm text-white/90">{market.question}</div>
-                <div className="text-xs text-text-secondary mt-2">
-                  {typeof market.price === 'number' ? `Price: ${market.price.toFixed(2)}` : '—'}
-                  {typeof market.volume === 'number' ? ` · Vol: ${Intl.NumberFormat().format(market.volume)}` : ''}
+            {markets.map((market, index) => (
+              <li
+                key={market.id}
+                className="flex items-start gap-3 rounded-xl border border-line-subtle/10 bg-white/5 p-3"
+              >
+                <span className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/8 text-sm font-semibold text-white/80">
+                  {index + 1}
+                </span>
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-white/90">
+                    <Icon I={TrendingUp} className="h-4 w-4 text-brand-red/80" />
+                    <span>{market.question}</span>
+                  </div>
+                  <div className="text-xs text-text-secondary">
+                    {typeof market.price === 'number' ? `Price: ${market.price.toFixed(2)}` : '—'}
+                    {typeof market.volume === 'number' ? ` · Vol: ${Intl.NumberFormat().format(market.volume)}` : ''}
+                  </div>
                 </div>
               </li>
             ))}

@@ -17,6 +17,7 @@ const config: Config = {
         brand: {
           red: 'rgb(var(--brand-red) / <alpha-value>)',
           redSoft: 'rgb(var(--brand-red-soft) / <alpha-value>)',
+          'red-soft': 'rgb(var(--brand-red-soft) / <alpha-value>)',
         },
         line: {
           subtle: 'rgb(var(--line-subtle) / <alpha-value>)',
