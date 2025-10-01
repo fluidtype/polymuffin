@@ -1,5 +1,5 @@
+import { Suspense } from 'react';
 import clsx from 'clsx';
-import dynamic from 'next/dynamic';
 import FadeIn from '@/components/motion/FadeIn';
 import ChartCard from '@/components/ChartCard';
 import EventsList from '@/components/EventsList';
@@ -8,21 +8,12 @@ import { RightColumn } from '@/components/RightColumn';
 import SectionTitle from '@/components/SectionTitle';
 import Button from '@/components/ui/Button';
 import { withDashboardHeader, type DashboardHeader } from '@/components/DashboardShell';
+import LiveMiniChart from '@/components/charts/LiveMiniChart';
 
 import { lastNDaysISO } from '@/lib/dates';
-import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev, movingAverage, toSeries } from '@/lib/stats';
+import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev } from '@/lib/stats';
 import { getBaseUrl } from '@/lib/urls';
 import type { GdeltResp, Market, Tweet } from '@/lib/types';
-
-const TimeSeriesVisx = dynamic(() => import('@/components/charts/TimeSeriesVisx'), {
-  ssr: false,
-  loading: () => <div className="h-64 rounded-2xl bg-white/5 animate-pulse" />,
-});
-
-const LiveMiniChart = dynamic(() => import('@/components/charts/LiveMiniChart'), {
-  ssr: false,
-  loading: () => <div className="h-44 rounded-2xl bg-white/5 animate-pulse" />,
-});
 
 export const header: DashboardHeader = {
   title: 'Market pulse',
@@ -35,6 +26,17 @@ type PolymarketMarket = Market & { outcomes?: PolymarketOutcome[] };
 type PolymarketResp = { items?: PolymarketMarket[] };
 
 type EventRow = { date: string; title: string; tone?: number; impact?: number; source?: string };
+
+const demoChartData = [
+  { date: '2025-01-01', value: 120 },
+  { date: '2025-01-02', value: 98 },
+  { date: '2025-01-03', value: 135 },
+  { date: '2025-01-04', value: 110 },
+  { date: '2025-01-05', value: 142 },
+  { date: '2025-01-06', value: 128 },
+  { date: '2025-01-07', value: 150 },
+  { date: '2025-01-08', value: 170 },
+];
 
 const timeframes = [
   { label: '7d', active: false },
@@ -68,11 +70,6 @@ export default async function Home() {
   const volume = kpiVolume(rows);
   const sentAvg = kpiSentimentAvg(rows);
   const delta = kpiDeltaVsPrev(rows, prevRows);
-
-  const volSeries = movingAverage(toSeries(rows, 'interaction_count'), 28);
-  const sentSeries = toSeries(rows, 'avg_sentiment');
-  const hasVolumeSeries = volSeries.length > 0;
-  const hasSentSeries = sentSeries.length > 0;
 
   const events: EventRow[] = [];
 
@@ -137,29 +134,26 @@ export default async function Home() {
         <div className="space-y-4 xl:col-span-2">
           <FadeIn>
             <ChartCard
-              title="Daily volume (28d MA)"
-              isEmpty={!hasVolumeSeries}
-              emptyHint="We’ll chart volume once GDELT returns activity for this range."
-            >
-              <TimeSeriesVisx series={[{ id: 'volume', data: volSeries }]} />
-            </ChartCard>
+              title="Daily Events & Trend"
+              data={demoChartData}
+              emptyHint="We’ll render the trend once fresh events arrive."
+            />
           </FadeIn>
           <FadeIn delay={0.05}>
-            <ChartCard
-              title="Sentiment over time"
-              isEmpty={!hasSentSeries}
-              emptyHint="Sentiment data will appear as soon as we ingest events."
-            >
-              <TimeSeriesVisx series={[{ id: 'sentiment', data: sentSeries }]} />
-            </ChartCard>
-          </FadeIn>
-          <FadeIn delay={0.1}>
             <EventsList rows={events} />
           </FadeIn>
         </div>
 
         <FadeIn delay={0.15}>
-          <RightColumn tweets={tweets} markets={markets} LiveChart={<LiveMiniChart />} />
+          <RightColumn
+            tweets={tweets}
+            markets={markets}
+            LiveChart={(
+              <Suspense fallback={<div className="h-44 rounded-2xl bg-white/5 animate-pulse" />}>
+                <LiveMiniChart />
+              </Suspense>
+            )}
+          />
         </FadeIn>
       </div>
     </div>

@@ -1,4 +1,3 @@
-import dynamic from 'next/dynamic';
 import FadeIn from '@/components/motion/FadeIn';
 import ChartCard from '@/components/ChartCard';
 import EventsList from '@/components/EventsList';
@@ -12,11 +11,6 @@ import { parseQuery } from '@/lib/queryParser';
 import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev, toSeries, seriesCoverage } from '@/lib/stats';
 import { getBaseUrl } from '@/lib/urls';
 import type { GdeltResp, Market, Tweet } from '@/lib/types';
-
-const TimeSeriesVisx = dynamic(() => import('@/components/charts/TimeSeriesVisx'), {
-  ssr: false,
-  loading: () => <div className="h-64 rounded-2xl bg-white/5 animate-pulse" />,
-});
 
 export const header: DashboardHeader = {
   title: 'Search',
@@ -86,11 +80,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
   const mainSeries = mode === 'bbva'
     ? seriesCoverage(rows)
     : toSeries(rows, 'interaction_count');
-  const mainSeriesId = mode === 'bbva' ? 'coverage' : 'volume';
 
   const sentSeries = toSeries(rows, 'avg_sentiment');
-  const hasMainSeries = mainSeries.length > 0;
-  const hasSentSeries = sentSeries.length > 0;
 
   const events: EventRow[] = [];
 
@@ -137,20 +128,16 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
           <FadeIn>
             <ChartCard
               title={mode === 'bbva' ? 'Relative Coverage (daily)' : 'Daily Volume'}
-              isEmpty={!hasMainSeries}
-              emptyHint="We couldn’t load enough data for this chart. Try expanding the date range."
-            >
-              <TimeSeriesVisx series={[{ id: mainSeriesId, data: mainSeries }]} />
-            </ChartCard>
+              data={mainSeries}
+              emptyHint="We couldn't load enough data for this chart. Try expanding the date range."
+            />
           </FadeIn>
           <FadeIn delay={0.05}>
             <ChartCard
               title="Sentiment over time"
-              isEmpty={!hasSentSeries}
+              data={sentSeries}
               emptyHint="Sentiment will appear once we have GDELT events for this search."
-            >
-              <TimeSeriesVisx series={[{ id: 'sentiment', data: sentSeries }]} />
-            </ChartCard>
+            />
           </FadeIn>
           <FadeIn delay={0.1}>
             <EventsList rows={events} />
