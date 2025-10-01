@@ -12,10 +12,20 @@ type BuildOpts = {
   mode?: 'context'|'search'|'bilateral'|'bbva';
 };
 
-function parseMode(q: string, mode?: BuildOpts['mode']) {
+type ModeShape =
+  | { action: 'context'; v: 2 }
+  | { action: 'search'; v: 1 }
+  | { action: 'bilateral'; v: 2; c1: string; c2: string }
+  | { action: 'bilateral_conflict_coverage'; v: 2; a1: string; a2: string };
+
+function parseMode(q: string, mode?: BuildOpts['mode']): ModeShape {
   const arrow = q.match(/([A-Z]{3})\s*(?:→|->)\s*([A-Z]{3})/);
-  if (mode === 'bbva' && arrow) return { action: 'bilateral_conflict_coverage', a1: arrow[1], a2: arrow[2], v: 2 };
-  if ((mode === 'bilateral' || arrow) && arrow) return { action: 'bilateral', c1: arrow[1], c2: arrow[2], v: 2 };
+  if (mode === 'bbva' && arrow) {
+    return { action: 'bilateral_conflict_coverage', a1: arrow[1], a2: arrow[2], v: 2 };
+  }
+  if ((mode === 'bilateral' || arrow) && arrow) {
+    return { action: 'bilateral', c1: arrow[1], c2: arrow[2], v: 2 };
+  }
   if (mode === 'search') return { action: 'search', v: 1 };
   return { action: 'context', v: 2 };
 }
@@ -33,11 +43,11 @@ export function buildGdeltUrl({ q, from, to, gran, mode }: BuildOpts) {
   if (p.action === 'context') {
     if (q.trim()) url += `&keywords=${encodeURIComponent(q.trim())}&include_insights=true`;
   }
-  if (p.action === 'bilateral' && (p as any).c1 && (p as any).c2) {
-    url += `&country1=${(p as any).c1}&country2=${(p as any).c2}`;
+  if (p.action === 'bilateral' && p.c1 && p.c2) {
+    url += `&country1=${p.c1}&country2=${p.c2}`;
   }
-  if (p.action === 'bilateral_conflict_coverage' && (p as any).a1 && (p as any).a2) {
-    url += `&actor1_code=${(p as any).a1}&actor2_code=${(p as any).a2}&include_total=true`;
+  if (p.action === 'bilateral_conflict_coverage' && p.a1 && p.a2) {
+    url += `&actor1_code=${p.a1}&actor2_code=${p.a2}&include_total=true`;
   }
   return url;
 }
@@ -57,14 +67,15 @@ export async function fetchGdelt(opts: BuildOpts): Promise<GdeltResp> {
   try {
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) {
-      return { status: 'error', error: mapHttpToUserError(res.status) } as any;
+      return { status: 'error', error: mapHttpToUserError(res.status) } satisfies GdeltResp;
     }
-    const json = await res.json();
+    const json = (await res.json()) as GdeltResp;
     if (json?.status === 'error') {
-      return { status: 'error', error: json.error || 'GDELT ha risposto con errore.' } as any;
+      return { status: 'error', error: json.error || 'GDELT ha risposto con errore.' } satisfies GdeltResp;
     }
     return json;
-  } catch (e: any) {
-    return { status: 'error', error: `Rete non raggiungibile: ${e?.message || e}` } as any;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { status: 'error', error: `Rete non raggiungibile: ${message}` } satisfies GdeltResp;
   }
 }
