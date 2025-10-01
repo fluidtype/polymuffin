@@ -4,6 +4,8 @@ import KpiCard from '@/components/KpiCard';
 import LineBasic from '@/components/charts/Line';
 import EventsList from '@/components/EventsList';
 import { RightColumn } from '@/components/RightColumn';
+import FadeIn from '@/components/motion/FadeIn';
+import SectionTitle from '@/components/SectionTitle';
 
 import { parseQuery } from '@/lib/queryParser';
 import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev, toSeries, seriesCoverage } from '@/lib/stats';
@@ -98,32 +100,48 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
         <SearchBar />
       </div>
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Results for “{q}”</h1>
-        <div className="text-xs text-white/60">Range: {from} → {to} · gran: {gran}</div>
-      </div>
+      <SectionTitle
+        title={`Results for “${q}”`}
+        subtitle={`Range: ${from} → ${to} · gran: ${gran}`}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <KpiCard label="Volume" value={Intl.NumberFormat().format(volume)} delta={`${(delta * 100).toFixed(1)}% vs prev`} />
-        <KpiCard label="Sentiment avg" value={`${sentAvg >= 0 ? '+' : ''}${sentAvg.toFixed(2)}`} />
-        <KpiCard label="Change vs prev" value={`${(delta * 100).toFixed(1)}%`} />
-        {mode === 'bbva'
-          ? <KpiCard label="Rel. Coverage" value={`${((rows?.[rows.length - 1]?.relative_coverage ?? 0) * 100).toFixed(2)}%`} />
-          : <KpiCard label="Signals" value="OK" />}
+        <FadeIn>
+          <KpiCard label="Volume" value={Intl.NumberFormat().format(volume)} delta={`${(delta * 100).toFixed(1)}% vs prev`} />
+        </FadeIn>
+        <FadeIn delay={0.05}>
+          <KpiCard label="Sentiment avg" value={`${sentAvg >= 0 ? '+' : ''}${sentAvg.toFixed(2)}`} />
+        </FadeIn>
+        <FadeIn delay={0.1}>
+          <KpiCard label="Change vs prev" value={`${(delta * 100).toFixed(1)}%`} />
+        </FadeIn>
+        <FadeIn delay={0.15}>
+          {mode === 'bbva'
+            ? <KpiCard label="Rel. Coverage" value={`${((rows?.[rows.length - 1]?.relative_coverage ?? 0) * 100).toFixed(2)}%`} />
+            : <KpiCard label="Signals" value="OK" />}
+        </FadeIn>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2 space-y-4">
-          <ChartCard title={mode === 'bbva' ? 'Relative Coverage (daily)' : 'Daily Volume'}>
-            <LineBasic data={mainSeries} />
-          </ChartCard>
-          <ChartCard title="Sentiment over time">
-            <LineBasic data={sentSeries} color="#ff5a5a" />
-          </ChartCard>
-          <EventsList rows={events} />
+          <FadeIn>
+            <ChartCard title={mode === 'bbva' ? 'Relative Coverage (daily)' : 'Daily Volume'}>
+              <LineBasic data={mainSeries} />
+            </ChartCard>
+          </FadeIn>
+          <FadeIn delay={0.05}>
+            <ChartCard title="Sentiment over time">
+              <LineBasic data={sentSeries} color="#ff5a5a" />
+            </ChartCard>
+          </FadeIn>
+          <FadeIn delay={0.1}>
+            <EventsList rows={events} />
+          </FadeIn>
         </div>
 
-        <RightColumn tweets={tweets} markets={markets} />
+        <FadeIn delay={0.15}>
+          <RightColumn tweets={tweets} markets={markets} />
+        </FadeIn>
       </div>
     </div>
   );
