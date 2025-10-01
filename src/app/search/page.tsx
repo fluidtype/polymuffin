@@ -13,6 +13,7 @@ import { suggestGranularity, daysDiff } from '@/lib/guards';
 import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev } from '@/lib/stats';
 import { getBaseUrl } from '@/lib/urls';
 import { lastNDaysISO, yyyymmddToIso } from '@/lib/dates';
+import { extractEvents } from '@/lib/gdeltTransforms';
 import type { GdeltDaily, GdeltResp, Market, Tweet } from '@/lib/types';
 
 const header: DashboardHeader = {
@@ -185,6 +186,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const volume = shouldComputeKpis ? kpiVolume(rows) : 0;
   const sentimentAvg = shouldComputeKpis ? kpiSentimentAvg(rows) : 0;
   const delta = shouldComputeKpis ? kpiDeltaVsPrev(rows, prevRows) : 0;
+  const eventRows = shouldComputeKpis ? extractEvents(gdeltResult.data?.insights) : [];
 
   const volumeValue = shouldComputeKpis ? Intl.NumberFormat().format(volume) : 'N/A';
   const volumeDelta = shouldComputeKpis ? `${(delta * 100).toFixed(1)}% vs prev` : '—';
@@ -282,7 +284,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             data={sentimentSeries}
             emptyHint="Il sentiment apparirà quando saranno disponibili eventi GDELT per questa ricerca."
           />
-          <EventsList rows={[]} />
+          <EventsList rows={eventRows} />
         </div>
 
         <RightColumn tweets={tweets} markets={markets} />
