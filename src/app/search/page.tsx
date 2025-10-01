@@ -8,7 +8,8 @@ import SectionTitle from '@/components/SectionTitle';
 import { withDashboardHeader, type DashboardHeader } from '@/components/DashboardShell';
 
 import { parseQuery } from '@/lib/queryParser';
-import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev, toSeries, seriesCoverage } from '@/lib/stats';
+import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev } from '@/lib/stats';
+import { buildMainSeries, buildSentimentSeries, extractEvents, normalizeMode } from '@/lib/gdeltTransforms';
 import { getBaseUrl } from '@/lib/urls';
 import type { GdeltResp, Market, Tweet } from '@/lib/types';
 
@@ -21,8 +22,6 @@ type TwitterResp = { data?: Tweet[] };
 type PolymarketOutcome = { price?: number };
 type PolymarketMarket = Market & { outcomes?: PolymarketOutcome[] };
 type PolymarketResp = { items?: PolymarketMarket[] };
-
-type EventRow = { date: string; title: string; tone?: number; impact?: number; source?: string };
 
 type SearchParams = Record<string, string | string[]>;
 
@@ -77,13 +76,11 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
   const sentAvg = kpiSentimentAvg(rows);
   const delta = kpiDeltaVsPrev(rows, prevRows);
 
-  const mainSeries = mode === 'bbva'
-    ? seriesCoverage(rows)
-    : toSeries(rows, 'interaction_count');
+  const normalizedMode = normalizeMode(gdRes?.action ?? mode);
+  const mainSeries = buildMainSeries(rows, gdRes?.action ?? mode, gdRes?.insights);
+  const sentSeries = buildSentimentSeries(rows);
 
-  const sentSeries = toSeries(rows, 'avg_sentiment');
-
-  const events: EventRow[] = [];
+  const events = extractEvents(gdRes?.insights);
 
   const tweets = (twRes?.data ?? []).map(tweet => ({
     id: tweet.id,
@@ -117,7 +114,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
           <KpiCard label="Change vs prev" value={`${(delta * 100).toFixed(1)}%`} />
         </FadeIn>
         <FadeIn delay={0.15}>
-          {mode === 'bbva'
+          {normalizedMode === 'bbva'
             ? <KpiCard label="Rel. Coverage" value={`${((rows?.[rows.length - 1]?.relative_coverage ?? 0) * 100).toFixed(2)}%`} />
             : <KpiCard label="Signals" value="OK" />}
         </FadeIn>
@@ -127,7 +124,11 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
         <div className="space-y-4 xl:col-span-2">
           <FadeIn>
             <ChartCard
-              title={mode === 'bbva' ? 'Relative Coverage (daily)' : 'Daily Volume'}
+              title={normalizedMode === 'bbva'
+                ? 'Relative Coverage (daily)'
+                : normalizedMode === 'bilateral'
+                  ? 'Conflict Events (daily)'
+                  : 'Daily Volume'}
               data={mainSeries}
               emptyHint="We couldn't load enough data for this chart. Try expanding the date range."
             />

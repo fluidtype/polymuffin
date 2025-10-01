@@ -12,6 +12,7 @@ import LiveMiniChart from '@/components/charts/LiveMiniChart';
 
 import { lastNDaysISO } from '@/lib/dates';
 import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev } from '@/lib/stats';
+import { buildMainSeries, extractEvents } from '@/lib/gdeltTransforms';
 import { getBaseUrl } from '@/lib/urls';
 import type { GdeltResp, Market, Tweet } from '@/lib/types';
 
@@ -24,19 +25,6 @@ type TwitterResp = { data?: Tweet[] };
 type PolymarketOutcome = { price?: number };
 type PolymarketMarket = Market & { outcomes?: PolymarketOutcome[] };
 type PolymarketResp = { items?: PolymarketMarket[] };
-
-type EventRow = { date: string; title: string; tone?: number; impact?: number; source?: string };
-
-const demoChartData = [
-  { date: '2025-01-01', value: 120 },
-  { date: '2025-01-02', value: 98 },
-  { date: '2025-01-03', value: 135 },
-  { date: '2025-01-04', value: 110 },
-  { date: '2025-01-05', value: 142 },
-  { date: '2025-01-06', value: 128 },
-  { date: '2025-01-07', value: 150 },
-  { date: '2025-01-08', value: 170 },
-];
 
 const timeframes = [
   { label: '7d', active: false },
@@ -71,7 +59,8 @@ export default async function Home() {
   const sentAvg = kpiSentimentAvg(rows);
   const delta = kpiDeltaVsPrev(rows, prevRows);
 
-  const events: EventRow[] = [];
+  const trendSeries = buildMainSeries(rows, gdRes.action, gdRes.insights);
+  const events = extractEvents(gdRes.insights);
 
   const tweets = (twRes.data ?? []).map(tweet => ({
     id: tweet.id,
@@ -135,7 +124,7 @@ export default async function Home() {
           <FadeIn>
             <ChartCard
               title="Daily Events & Trend"
-              data={demoChartData}
+              data={trendSeries}
               emptyHint="We’ll render the trend once fresh events arrive."
             />
           </FadeIn>
