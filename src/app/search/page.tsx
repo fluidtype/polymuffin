@@ -1,11 +1,12 @@
 import dynamic from 'next/dynamic';
-import SearchBar from '@/components/SearchBar';
-import ChartCard from '@/components/ChartCard';
-import KpiCard from '@/components/KpiCard';
-import EventsList from '@/components/EventsList';
-import { RightColumn } from '@/components/RightColumn';
 import FadeIn from '@/components/motion/FadeIn';
+import ChartCard from '@/components/ChartCard';
+import EventsList from '@/components/EventsList';
+import KpiCard from '@/components/KpiCard';
+import SearchBar from '@/components/SearchBar';
+import { RightColumn } from '@/components/RightColumn';
 import SectionTitle from '@/components/SectionTitle';
+import { withDashboardHeader, type DashboardHeader } from '@/components/DashboardShell';
 
 import { parseQuery } from '@/lib/queryParser';
 import { kpiVolume, kpiSentimentAvg, kpiDeltaVsPrev, toSeries, seriesCoverage } from '@/lib/stats';
@@ -14,8 +15,13 @@ import type { GdeltResp, Market, Tweet } from '@/lib/types';
 
 const TimeSeriesVisx = dynamic(() => import('@/components/charts/TimeSeriesVisx'), {
   ssr: false,
-  loading: () => <div className="h-64 bg-white/5 rounded-2xl animate-pulse" />,
+  loading: () => <div className="h-64 rounded-2xl bg-white/5 animate-pulse" />,
 });
+
+export const header: DashboardHeader = {
+  title: 'Search',
+  subtitle: 'Investigate narratives across sources',
+};
 
 type TwitterResp = { data?: Tweet[] };
 type PolymarketOutcome = { price?: number };
@@ -102,18 +108,14 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
     volume: market.volume,
   }));
 
-  return (
+  const page = (
     <div className="space-y-6">
-      <div className="pt-6">
-        <SearchBar />
-      </div>
-
       <SectionTitle
         title={`Results for “${q}”`}
         subtitle={`Range: ${from} → ${to} · gran: ${gran}`}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
         <FadeIn>
           <KpiCard label="Volume" value={Intl.NumberFormat().format(volume)} delta={`${(delta * 100).toFixed(1)}% vs prev`} />
         </FadeIn>
@@ -130,8 +132,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
         </FadeIn>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="xl:col-span-2 space-y-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="space-y-4 xl:col-span-2">
           <FadeIn>
             <ChartCard
               title={mode === 'bbva' ? 'Relative Coverage (daily)' : 'Daily Volume'}
@@ -161,4 +163,14 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
       </div>
     </div>
   );
+
+  return withDashboardHeader(page, {
+    ...header,
+    subtitle: `“${q || 'all'}” · ${from} → ${to}`,
+    filters: (
+      <div className="w-full md:max-w-2xl">
+        <SearchBar />
+      </div>
+    ),
+  });
 }
