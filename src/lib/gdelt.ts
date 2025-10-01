@@ -2,82 +2,69 @@ import { isoToYyyymmdd } from './dates';
 import { suggestGranularity } from './guards';
 import type { GdeltResp } from './types';
 
-const BASE = process.env.NEXT_PUBLIC_GDELT_BASE ?? 'https://my-search-proxy.ew.r.appspot.com/gdelt';
+const BASE = process.env.NEXT_PUBLIC_GDELT_BASE || 'https://my-search-proxy.ew.r.appspot.com/gdelt';
 
 type BuildOpts = {
   q: string;
   from: string;
   to: string;
-  gran: 'auto' | 'daily' | 'monthly';
-  mode?: 'context' | 'search' | 'bilateral' | 'bbva';
+  gran: 'auto'|'daily'|'monthly';
+  mode?: 'context'|'search'|'bilateral'|'bbva';
 };
 
-type ContextMode = { action: 'context'; v: 2 };
-type SearchMode = { action: 'search'; v: 1 };
-type BilateralMode = { action: 'bilateral'; v: 1; c1: string; c2: string };
-type BilateralConflictMode = {
-  action: 'bilateral_conflict_coverage';
-  v: 2;
-  a1: string;
-  a2: string;
-};
-
-type ParsedMode = ContextMode | SearchMode | BilateralMode | BilateralConflictMode;
-
-function parseMode(q: string, mode?: BuildOpts['mode']): ParsedMode {
-  const arrow = q.match(/([A-Z]{3})\s*->\s*([A-Z]{3})/);
-  if (mode === 'bbva' && arrow) {
-    return { action: 'bilateral_conflict_coverage', a1: arrow[1]!, a2: arrow[2]!, v: 2 };
-  }
-  if ((mode === 'bilateral' || arrow) && arrow) {
-    return { action: 'bilateral', c1: arrow[1]!, c2: arrow[2]!, v: 1 };
-  }
-  if (mode === 'search') {
-    return { action: 'search', v: 1 };
-  }
+function parseMode(q: string, mode?: BuildOpts['mode']) {
+  const arrow = q.match(/([A-Z]{3})\s*(?:→|->)\s*([A-Z]{3})/);
+  if (mode === 'bbva' && arrow) return { action: 'bilateral_conflict_coverage', a1: arrow[1], a2: arrow[2], v: 2 };
+  if ((mode === 'bilateral' || arrow) && arrow) return { action: 'bilateral', c1: arrow[1], c2: arrow[2], v: 2 };
+  if (mode === 'search') return { action: 'search', v: 1 };
   return { action: 'context', v: 2 };
 }
 
 export function buildGdeltUrl({ q, from, to, gran, mode }: BuildOpts) {
-  const parsed = parseMode(q, mode);
-  const versionSuffix = parsed.v === 2 ? '/v2' : '';
+  const p = parseMode(q, mode);
+  const v = p.v === 2 ? '/v2' : '';
   const ds = isoToYyyymmdd(from);
   const de = isoToYyyymmdd(to);
-  const granularity =
-    (gran === 'auto' ? suggestGranularity(from, to) : gran) === 'daily'
-      ? '&granularity=daily'
-      : '';
+  const resolvedGran = (gran === 'auto' ? suggestGranularity(from, to) : gran);
+  const g = resolvedGran === 'daily' ? '&granularity=daily' : '';
 
-  let url = `${BASE}${versionSuffix}?action=${parsed.action}&date_start=${ds}&date_end=${de}${granularity}`;
+  let url = `${BASE}${v}?action=${p.action}&date_start=${ds}&date_end=${de}${g}`;
 
-  if (parsed.action === 'context') {
-    if (q.trim()) {
-      url += `&keywords=${encodeURIComponent(q.trim())}&include_insights=true`;
-    }
+  if (p.action === 'context') {
+    if (q.trim()) url += `&keywords=${encodeURIComponent(q.trim())}&include_insights=true`;
   }
-  if (parsed.action === 'bilateral') {
-    url += `&country1=${parsed.c1}&country2=${parsed.c2}`;
+  if (p.action === 'bilateral' && (p as any).c1 && (p as any).c2) {
+    url += `&country1=${(p as any).c1}&country2=${(p as any).c2}`;
   }
-  if (parsed.action === 'bilateral_conflict_coverage') {
-    url += `&actor1_code=${parsed.a1}&actor2_code=${parsed.a2}&include_total=true`;
+  if (p.action === 'bilateral_conflict_coverage' && (p as any).a1 && (p as any).a2) {
+    url += `&actor1_code=${(p as any).a1}&actor2_code=${(p as any).a2}&include_total=true`;
   }
   return url;
 }
 
+function mapHttpToUserError(status: number): string {
+  if (status === 400) return 'Richiesta non valida per GDELT (400). Controlla parametri e formato date.';
+  if (status === 401 || status === 403) return 'Accesso negato al backend GDELT (401/403). Configura NEXT_PUBLIC_GDELT_BASE verso un proxy autorizzato.';
+  if (status === 404) return 'Endpoint GDELT non trovato (404). Controlla BASE URL.';
+  if (status === 429) return 'Rate limit GDELT (429). Riprova tra poco.';
+  if (status === 500) return 'Errore interno backend GDELT (500).';
+  if (status === 502 || status === 503 || status === 504) return 'Backend GDELT temporaneamente non disponibile (5xx).';
+  return `Errore GDELT (${status}).`;
+}
+
 export async function fetchGdelt(opts: BuildOpts): Promise<GdeltResp> {
   const url = buildGdeltUrl(opts);
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) {
-    let detail: string | null = null;
-    try {
-      detail = await res.text();
-    } catch {
-      detail = null;
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) {
+      return { status: 'error', error: mapHttpToUserError(res.status) } as any;
     }
-    const message = detail?.trim()?.length
-      ? detail.trim()
-      : res.statusText || 'Unknown response';
-    throw new Error(`GDELT request failed (${res.status}): ${message}`);
+    const json = await res.json();
+    if (json?.status === 'error') {
+      return { status: 'error', error: json.error || 'GDELT ha risposto con errore.' } as any;
+    }
+    return json;
+  } catch (e: any) {
+    return { status: 'error', error: `Rete non raggiungibile: ${e?.message || e}` } as any;
   }
-  return res.json();
 }
