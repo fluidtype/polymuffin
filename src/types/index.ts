@@ -23,6 +23,11 @@ export interface GdeltInsights {
   sentiment_analysis?: {
     avg_tone?: number;
   };
+  temporal_distribution?: { date: string; count: number }[];
+  top_actors?: ({ name: string; mentions?: number } | string)[];
+  spikes?: { label: string; severity?: 'low' | 'medium' | 'high' }[];
+  last_updated?: string;
+  fallback_notes?: string[];
   /* add from context insights */
   [key: string]: unknown;
 }
