@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import DashboardShell, { type DashboardHeader } from '@/components/DashboardShell';
 import ShaderBg from '@/components/ShaderBg';
 import CommandPalette from '@/components/CommandPaletteProvider';
+import SidePanel from '@/components/shared/SidePanel';
 
 export const metadata: Metadata = {
   title: 'Polymuffin',
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </main>
         <CommandPalette />
+        <SidePanel />
       </body>
     </html>
   );
